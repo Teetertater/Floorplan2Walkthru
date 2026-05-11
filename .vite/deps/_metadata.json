@@ -1,0 +1,38 @@
+{
+  "hash": "3dae4cf9",
+  "configHash": "0670017f",
+  "lockfileHash": "6f9cf8cb",
+  "browserHash": "35e14f2f",
+  "optimized": {
+    "postprocessing": {
+      "src": "../../node_modules/postprocessing/build/index.js",
+      "file": "postprocessing.js",
+      "fileHash": "d3341cc7",
+      "needsInterop": false
+    },
+    "three": {
+      "src": "../../node_modules/three/build/three.module.js",
+      "file": "three.js",
+      "fileHash": "7e2f2153",
+      "needsInterop": false
+    },
+    "three/examples/jsm/controls/PointerLockControls.js": {
+      "src": "../../node_modules/three/examples/jsm/controls/PointerLockControls.js",
+      "file": "three_examples_jsm_controls_PointerLockControls__js.js",
+      "fileHash": "93e57086",
+      "needsInterop": false
+    },
+    "three/examples/jsm/loaders/RGBELoader.js": {
+      "src": "../../node_modules/three/examples/jsm/loaders/RGBELoader.js",
+      "file": "three_examples_jsm_loaders_RGBELoader__js.js",
+      "fileHash": "d1c588b9",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "three.module-slveYrFH": {
+      "file": "three.module-slveYrFH.js",
+      "isDynamicEntry": false
+    }
+  }
+}

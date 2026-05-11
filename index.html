@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architectural Walkthrough</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas { display: block; }
+
+    .ui-panel {
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.7);
+      color: #ddd;
+      z-index: 50;
+    }
+
+    #plan-picker {
+      position: fixed;
+      top: 12px; left: 12px;
+      cursor: pointer;
+    }
+
+    #controls-info {
+      position: fixed;
+      top: 12px; right: 12px;
+      line-height: 1.6;
+      pointer-events: none;
+      max-width: 220px;
+    }
+    #controls-info kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.15);
+      font-family: inherit;
+      font-size: 12px;
+    }
+    #controls-info .mode-label {
+      color: #5cf;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    #minimap {
+      position: fixed;
+      bottom: 16px; right: 16px;
+      z-index: 50;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      cursor: crosshair;
+    }
+
+    #room-label {
+      position: fixed;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, 0);
+      z-index: 50;
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      color: rgba(255,255,255,0.6);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    }
+
+    #crosshair {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      z-index: 50;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <select id="plan-picker" class="ui-panel"></select>
+
+  <div id="controls-info" class="ui-panel">
+    <div class="mode-label" id="mode-label">Free Cursor Mode</div>
+    <div><kbd>WASD</kbd> Move</div>
+    <div><kbd>Click+Drag</kbd> Look around</div>
+    <div><kbd>Tab</kbd> Toggle FPS lock</div>
+    <div><kbd>M</kbd> Toggle minimap</div>
+    <div><kbd>Minimap</kbd> Click to teleport</div>
+  </div>
+
+  <canvas id="minimap" width="300" height="300"></canvas>
+  <div id="crosshair"></div>
+  <div id="room-label"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

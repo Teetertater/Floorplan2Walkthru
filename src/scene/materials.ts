@@ -1,0 +1,101 @@
+import * as THREE from 'three';
+
+const loader = new THREE.TextureLoader();
+
+function loadTex(path: string, repeat?: [number, number]): THREE.Texture {
+  const tex = loader.load(path);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  if (repeat) tex.repeat.set(repeat[0], repeat[1]);
+  return tex;
+}
+
+function loadData(path: string, repeat?: [number, number]): THREE.Texture {
+  const tex = loader.load(path);
+  tex.colorSpace = THREE.LinearSRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  if (repeat) tex.repeat.set(repeat[0], repeat[1]);
+  return tex;
+}
+
+export function createMaterials() {
+  // ExtrudeGeometry UVs are in the shape's coordinate space (meters).
+  // repeat = [R, R] means the texture tiles every 1/R meters.
+  // So repeat=0.5 → one tile per 2 meters. repeat=1 → one tile per 1 meter.
+
+  // Walls: beige wall tile every ~1.5m
+  const wr: [number, number] = [0.7, 0.7];
+  const wall = new THREE.MeshStandardMaterial({
+    map: loadTex('/textures/beige_wall/diff.jpg', wr),
+    normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
+    roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
+    roughness: 0.95,
+    metalness: 0.0,
+    envMapIntensity: 0.2,
+    side: THREE.DoubleSide,
+  });
+
+  const lintel = new THREE.MeshStandardMaterial({
+    map: loadTex('/textures/beige_wall/diff.jpg', wr),
+    normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
+    roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
+    roughness: 0.95,
+    metalness: 0.0,
+    envMapIntensity: 0.2,
+    side: THREE.DoubleSide,
+  });
+
+  // Floor: laminate planks tile every ~2m
+  const fr: [number, number] = [0.5, 0.5];
+  const floor = new THREE.MeshStandardMaterial({
+    map: loadTex('/textures/laminate_floor/diff.jpg', fr),
+    normalMap: loadData('/textures/laminate_floor/nor_gl.jpg', fr),
+    roughness: 0.85,
+    metalness: 0.0,
+    envMapIntensity: 0.1,
+    side: THREE.DoubleSide,
+  });
+
+  // Ceiling: smooth plastered finish, tile every ~2m
+  const cr: [number, number] = [0.5, 0.5];
+  const ceiling = new THREE.MeshStandardMaterial({
+    map: loadTex('/textures/plastered_ceiling/diff.jpg', cr),
+    normalMap: loadData('/textures/plastered_ceiling/nor_gl.jpg', cr),
+    normalScale: new THREE.Vector2(0.3, 0.3),
+    roughnessMap: loadData('/textures/plastered_ceiling/rough.jpg', cr),
+    roughness: 0.95,
+    metalness: 0.0,
+    envMapIntensity: 0.1,
+    side: THREE.DoubleSide,
+  });
+
+  const doorFrame = new THREE.MeshStandardMaterial({
+    color: 0x8b7355,
+    roughness: 0.4,
+    metalness: 0.05,
+  });
+
+  const windowPane = new THREE.MeshStandardMaterial({
+    color: 0xaaddff,
+    roughness: 0.05,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.DoubleSide,
+  });
+
+  // Ground: grass, tile every ~0.3m
+  const gr: [number, number] = [5, 5];
+  const ground = new THREE.MeshStandardMaterial({
+    map: loadTex('/textures/grass/diff.jpg', gr),
+    normalMap: loadData('/textures/grass/nor.png', gr),
+    roughnessMap: loadData('/textures/grass/rough.jpg', gr),
+    roughness: 1.0,
+    metalness: 0.0,
+    envMapIntensity: 0.0,
+  });
+
+  return { wall, lintel, floor, ceiling, doorFrame, windowPane, ground };
+}
