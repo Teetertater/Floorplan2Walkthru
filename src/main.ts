@@ -19,19 +19,28 @@ import { generateScene } from './scene/meshGen';
 import { setupLighting } from './scene/lighting';
 import { NavigationController } from './navigation/controls';
 import { Minimap } from './ui/minimap';
-import { initPlanPicker } from './ui/planPicker';
+import { SessionPicker } from './ui/planPicker';
 import { Plan } from './cubicasa/types';
+import { FurnitureManager } from './scene/furniture';
+import { EditModeController } from './ui/editMode';
+import { SceneState } from './state/types';
+import {
+  saveSession, getSession, getActiveSessionName, setActiveSessionName,
+} from './state/storage';
+import { DEFAULT_SCENES } from './state/defaults';
+import { BirdsEyeRenderer } from './scene/birdsEye';
 
 // ── Renderer ──
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
   stencil: false,
-  depth: false,
+  depth: true,
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = false;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.3;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -106,12 +115,30 @@ const minimap = new Minimap(minimapCanvas);
 const roomLabel = document.getElementById('room-label')!;
 let currentRoomName = '';
 
-// ── Plan management ──
-let planRoot: THREE.Group | null = null;
+// ── Furniture ──
+const furnitureManager = new FurnitureManager();
+scene.add(furnitureManager.getGroup());
+
+// ── Session state ──
 let currentPlan: Plan | null = null;
+let currentSceneState: SceneState | null = null;
+let currentSessionName: string = '';
+let planRoot: THREE.Group | null = null;
 const planCache = new Map<string, PlanBundle>();
 
-function applyPlan(bundle: PlanBundle) {
+// ── Edit mode ──
+const editMode = new EditModeController(
+  scene, camera, renderer.domElement, furnitureManager,
+  () => {
+    // Auto-save session on every edit (including camera)
+    saveCameraState();
+    saveBirdsEyeScreenshot();
+  },
+);
+
+// ── Core: apply a plan with a given scene state ──
+
+async function applyPlanWithState(bundle: PlanBundle, sessionName: string, state: SceneState) {
   if (planRoot) {
     scene.remove(planRoot);
     planRoot.traverse(obj => {
@@ -122,6 +149,8 @@ function applyPlan(bundle: PlanBundle) {
 
   const plan = parseCubiCasa(bundle.svgText, bundle.meta);
   currentPlan = plan;
+  currentSceneState = state;
+  currentSessionName = sessionName;
 
   planRoot = generateScene(plan, materials);
   scene.add(planRoot);
@@ -129,36 +158,120 @@ function applyPlan(bundle: PlanBundle) {
   nav.setRooms(plan.rooms);
   minimap.setPlan(plan, bundle.svgText);
 
-  const startRoom = plan.rooms.find(r => r.type === bundle.meta.startRoom)
-    || plan.rooms.find(r =>
-      r.type !== 'Outdoor' && r.type !== 'Outdoor Balcony' && r.type !== 'Closet'
-    )
-    || plan.rooms[0];
+  await furnitureManager.loadAll(state.furniture);
+  saveSession(sessionName, state);
+  setActiveSessionName(sessionName);
+  editMode.setPlan(plan, state);
+  const surfaceCount = state.surfaces ? Object.keys(state.surfaces).length : 0;
+  if (surfaceCount > 0) console.log(`Restoring ${surfaceCount} surface overrides`);
+  editMode.applySavedSurfaces();
+  picker.setActive(sessionName, state);
 
-  if (startRoom) {
-    const cx = startRoom.polygon.reduce((s, p) => s + p[0], 0) / startRoom.polygon.length;
-    const cz = startRoom.polygon.reduce((s, p) => s + p[1], 0) / startRoom.polygon.length;
-    nav.teleportTo(cx, cz);
+  // Restore camera from session, or default to start room
+  if (state.camera) {
+    const [px, py, pz] = state.camera.position;
+    const [dx, dy, dz] = state.camera.lookDir;
+    camera.position.set(px, py, pz);
+    camera.lookAt(px + dx, py + dy, pz + dz);
+  } else {
+    const startRoom = plan.rooms.find(r => r.type === bundle.meta.startRoom)
+      || plan.rooms.find(r =>
+        r.type !== 'Outdoor' && r.type !== 'Outdoor Balcony' && r.type !== 'Closet'
+      )
+      || plan.rooms[0];
+
+    if (startRoom) {
+      const cx = startRoom.polygon.reduce((s, p) => s + p[0], 0) / startRoom.polygon.length;
+      const cz = startRoom.polygon.reduce((s, p) => s + p[1], 0) / startRoom.polygon.length;
+      nav.teleportTo(cx, cz);
+    }
   }
 
-  console.log(`Loaded: ${bundle.meta.name}`);
+  console.log(`Loaded session "${sessionName}" (${state.furniture.length} furniture pieces)`);
+  saveBirdsEyeScreenshot();
 }
 
-async function switchPlan(planId: string) {
+async function loadPreset(planId: string) {
   let bundle = planCache.get(planId);
   if (!bundle) {
     bundle = await loadPlanBundle(planId);
     planCache.set(planId, bundle);
   }
-  applyPlan(bundle);
+  const state = DEFAULT_SCENES[planId]
+    || { planId, surfaces: {}, furniture: [] };
+  const sessionName = bundle.meta.name;
+  await applyPlanWithState(bundle, sessionName, JSON.parse(JSON.stringify(state)));
+  picker.rebuild();
+  picker.setValue(`session:${sessionName}`);
 }
 
-// ── Minimap toggle (M key) ──
+async function loadSession(name: string, state: SceneState) {
+  let bundle = planCache.get(state.planId);
+  if (!bundle) {
+    bundle = await loadPlanBundle(state.planId);
+    planCache.set(state.planId, bundle);
+  }
+  await applyPlanWithState(bundle, name, state);
+}
+
+// ── Camera state persistence ──
+function saveCameraState() {
+  if (!currentSceneState || !currentSessionName) return;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  currentSceneState.camera = {
+    position: [camera.position.x, camera.position.y, camera.position.z],
+    lookDir: [dir.x, dir.y, dir.z],
+  };
+  saveSession(currentSessionName, currentSceneState);
+}
+
+window.addEventListener('beforeunload', saveCameraState);
+
+// ── Bird's-eye view ──
+const birdsEye = new BirdsEyeRenderer();
+
+function saveBirdsEyeScreenshot() {
+  if (!currentPlan || !currentSceneState) return;
+  const dataUrl = birdsEye.capture(currentPlan, currentSceneState.furniture);
+  fetch('/api/screenshot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: dataUrl, name: currentPlan.id }),
+  }).catch(() => {});
+}
+
+// ── Session picker ──
+const picker = new SessionPicker(
+  document.getElementById('plan-picker') as HTMLSelectElement,
+  document.getElementById('btn-download') as HTMLButtonElement,
+  document.getElementById('btn-upload') as HTMLButtonElement,
+  [], // populated in init()
+  {
+    onSelectPreset: (planId) => loadPreset(planId),
+    onSelectSession: (name, state) => loadSession(name, state),
+    onImportSession: (name, state) => loadSession(name, state),
+  },
+);
+
+// ── Keyboard shortcuts ──
 let minimapVisible = true;
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'e' || e.key === 'E') {
+    editMode.toggle();
+  }
   if (e.key === 'm' || e.key === 'M') {
     minimapVisible = !minimapVisible;
-    minimapCanvas.style.display = minimapVisible ? '' : 'none';
+    (document.getElementById('minimap-container') as HTMLElement).style.display =
+      minimapVisible ? '' : 'none';
+  }
+  if (e.key === 'b' || e.key === 'B') {
+    if (!currentPlan || !currentSceneState) return;
+    if (birdsEye.isVisible) {
+      birdsEye.hideOverlay();
+    } else {
+      birdsEye.showOverlay(currentPlan, currentSceneState.furniture);
+    }
   }
 });
 
@@ -169,23 +282,26 @@ minimap.setTeleportHandler((x, z) => {
   nav.teleportTo(x, z);
 });
 
-// ── Bootstrap: load manifest, populate picker, load first plan ──
+// ── Bootstrap ──
 async function init() {
   const planIds = await loadManifest();
-
-  // Load all configs in parallel for the picker labels
   const bundles = await Promise.all(planIds.map(id => loadPlanBundle(id)));
   for (const b of bundles) planCache.set(b.meta.id, b);
 
-  const selectEl = document.getElementById('plan-picker') as HTMLSelectElement;
-  initPlanPicker(
-    selectEl,
-    bundles.map(b => ({ id: b.meta.id, name: b.meta.name })),
-    (planId) => switchPlan(planId),
-  );
+  // Set presets in picker
+  (picker as any).presets = bundles.map(b => ({ id: b.meta.id, name: b.meta.name }));
+  picker.rebuild();
 
-  // Load first plan
-  applyPlan(bundles[0]);
+  // Restore last session, or load first preset
+  const lastSessionName = getActiveSessionName();
+  const lastState = lastSessionName ? getSession(lastSessionName) : null;
+
+  if (lastState) {
+    picker.setValue(`session:${lastSessionName}`);
+    await loadSession(lastSessionName!, lastState);
+  } else {
+    await loadPreset(bundles[0].meta.id);
+  }
 }
 
 init();

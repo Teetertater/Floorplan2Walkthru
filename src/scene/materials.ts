@@ -21,19 +21,16 @@ function loadData(path: string, repeat?: [number, number]): THREE.Texture {
 }
 
 export function createMaterials() {
-  // ExtrudeGeometry UVs are in the shape's coordinate space (meters).
-  // repeat = [R, R] means the texture tiles every 1/R meters.
-  // So repeat=0.5 → one tile per 2 meters. repeat=1 → one tile per 1 meter.
-
-  // Walls: beige wall tile every ~1.5m
+  // Walls: white wall (beige texture tinted white)
   const wr: [number, number] = [0.7, 0.7];
   const wall = new THREE.MeshStandardMaterial({
     map: loadTex('/textures/beige_wall/diff.jpg', wr),
     normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
     roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
+    color: 0xf0f0f0, // tint towards white
     roughness: 0.95,
     metalness: 0.0,
-    envMapIntensity: 0.2,
+    envMapIntensity: 0.3,
     side: THREE.DoubleSide,
   });
 
@@ -41,24 +38,26 @@ export function createMaterials() {
     map: loadTex('/textures/beige_wall/diff.jpg', wr),
     normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
     roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
+    color: 0xf0f0f0,
     roughness: 0.95,
     metalness: 0.0,
-    envMapIntensity: 0.2,
+    envMapIntensity: 0.3,
     side: THREE.DoubleSide,
   });
 
-  // Floor: laminate planks tile every ~2m
+  // Floor: laminate with visible reflections
   const fr: [number, number] = [0.5, 0.5];
   const floor = new THREE.MeshStandardMaterial({
     map: loadTex('/textures/laminate_floor/diff.jpg', fr),
     normalMap: loadData('/textures/laminate_floor/nor_gl.jpg', fr),
-    roughness: 0.85,
+    roughnessMap: loadData('/textures/laminate_floor/rough.jpg', fr),
+    roughness: 0.6,
     metalness: 0.0,
-    envMapIntensity: 0.1,
+    envMapIntensity: 0.8,
     side: THREE.DoubleSide,
   });
 
-  // Ceiling: smooth plastered finish, tile every ~2m
+  // Ceiling
   const cr: [number, number] = [0.5, 0.5];
   const ceiling = new THREE.MeshStandardMaterial({
     map: loadTex('/textures/plastered_ceiling/diff.jpg', cr),
@@ -86,7 +85,7 @@ export function createMaterials() {
     side: THREE.DoubleSide,
   });
 
-  // Ground: grass, tile every ~0.3m
+  // Ground: grass
   const gr: [number, number] = [5, 5];
   const ground = new THREE.MeshStandardMaterial({
     map: loadTex('/textures/grass/diff.jpg', gr),

@@ -1,0 +1,155 @@
+{
+  "asset": {
+    "generator": "Khronos glTF Blender I/O v1.6.16",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "coffee_table_round_01"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "coffee_table_round_01",
+      "normalTexture": {
+        "index": 0
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 1
+        },
+        "metallicRoughnessTexture": {
+          "index": 2
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Plane.001",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "name": "coffee_table_round_01_nor_gl.png",
+      "uri": "textures/coffee_table_round_01_nor_gl_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "coffee_table_round_01_diff.png",
+      "uri": "textures/coffee_table_round_01_diff_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "coffee_table_round_01_metal.png-coffee_table_round_01_rough.png",
+      "uri": "textures/coffee_table_round_01_arm_1k.jpg"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 3339,
+      "max": [
+        0.6506503820419312,
+        0.4896320104598999,
+        0.6506507992744446
+      ],
+      "min": [
+        -0.6506505608558655,
+        -0.0013774335384368896,
+        -0.6506507992744446
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 3339,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 3339,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 12132,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 40068,
+      "byteOffset": 0
+    },
+    {
+      "buffer": 0,
+      "byteLength": 40068,
+      "byteOffset": 40068
+    },
+    {
+      "buffer": 0,
+      "byteLength": 26712,
+      "byteOffset": 80136
+    },
+    {
+      "buffer": 0,
+      "byteLength": 24264,
+      "byteOffset": 106848
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 131112,
+      "uri": "coffee_table_round_01.bin"
+    }
+  ]
+}

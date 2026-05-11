@@ -1,0 +1,374 @@
+{
+  "asset": {
+    "generator": "Khronos glTF Blender I/O v1.6.16",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "wooden_display_shelves_01"
+    },
+    {
+      "mesh": 1,
+      "name": "wooden_display_shelves_01_drawer_03"
+    },
+    {
+      "mesh": 2,
+      "name": "wooden_display_shelves_01_drawer_02"
+    },
+    {
+      "mesh": 3,
+      "name": "wooden_display_shelves_01_drawer_01"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "wooden_display_shelves_01",
+      "normalTexture": {
+        "index": 0
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 1
+        },
+        "metallicRoughnessTexture": {
+          "index": 2
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Cube.026",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    },
+    {
+      "name": "Cube.035",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 4,
+            "NORMAL": 5,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 0
+        }
+      ]
+    },
+    {
+      "name": "Cube.020",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 8,
+            "NORMAL": 9,
+            "TEXCOORD_0": 10
+          },
+          "indices": 11,
+          "material": 0
+        }
+      ]
+    },
+    {
+      "name": "Cube.033",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 12,
+            "NORMAL": 13,
+            "TEXCOORD_0": 14
+          },
+          "indices": 15,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "name": "wooden_display_shelves_01_nor_gl",
+      "uri": "textures/wooden_display_shelves_01_nor_gl_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "wooden_display_shelves_01_diff",
+      "uri": "textures/wooden_display_shelves_01_diff_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "wooden_display_shelves_01_metal-wooden_display_shelves_01_rough",
+      "uri": "textures/wooden_display_shelves_01_arm_1k.jpg"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 1082,
+      "max": [
+        0.18575482070446014,
+        1.5566201210021973,
+        0.538880467414856
+      ],
+      "min": [
+        -0.18575482070446014,
+        0.0004363059997558594,
+        -0.538880467414856
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 1082,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 1082,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 3492,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 545,
+      "max": [
+        0.165152907371521,
+        0.38758018612861633,
+        0.5136545300483704
+      ],
+      "min": [
+        -0.165152907371521,
+        0.03777199983596802,
+        0.18864081799983978
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 6,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 7,
+      "componentType": 5123,
+      "count": 2010,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 8,
+      "componentType": 5126,
+      "count": 545,
+      "max": [
+        0.165152907371521,
+        0.38758018612861633,
+        0.16241469979286194
+      ],
+      "min": [
+        -0.165152907371521,
+        0.03777199983596802,
+        -0.16259902715682983
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 9,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 10,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 11,
+      "componentType": 5123,
+      "count": 2010,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 12,
+      "componentType": 5126,
+      "count": 545,
+      "max": [
+        0.165152907371521,
+        0.38758018612861633,
+        -0.18771801888942719
+      ],
+      "min": [
+        -0.165152907371521,
+        0.03777199983596802,
+        -0.5127317309379578
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 13,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 14,
+      "componentType": 5126,
+      "count": 545,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 15,
+      "componentType": 5123,
+      "count": 2010,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 12984,
+      "byteOffset": 0
+    },
+    {
+      "buffer": 0,
+      "byteLength": 12984,
+      "byteOffset": 12984
+    },
+    {
+      "buffer": 0,
+      "byteLength": 8656,
+      "byteOffset": 25968
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6984,
+      "byteOffset": 34624
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 41608
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 48148
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4360,
+      "byteOffset": 54688
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4020,
+      "byteOffset": 59048
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 63068
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 69608
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4360,
+      "byteOffset": 76148
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4020,
+      "byteOffset": 80508
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 84528
+    },
+    {
+      "buffer": 0,
+      "byteLength": 6540,
+      "byteOffset": 91068
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4360,
+      "byteOffset": 97608
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4020,
+      "byteOffset": 101968
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 105988,
+      "uri": "wooden_display_shelves_01.bin"
+    }
+  ]
+}

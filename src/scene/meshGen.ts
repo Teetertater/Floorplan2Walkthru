@@ -384,9 +384,9 @@ function generateRoomLights(plan: Plan): THREE.Group {
     }
     area = Math.abs(area) / 2;
 
-    // Warm white point light, intensity scaled by room size
-    const intensity = Math.max(1.0, Math.min(4, area * 0.5));
-    const light = new THREE.PointLight(0xffffff, intensity, 8, 1.5);
+    // Soft warm fill light, intensity scaled gently by room size
+    const intensity = Math.max(0.3, Math.min(1.0, area * 0.12));
+    const light = new THREE.PointLight(0xfff5e8, intensity, 12, 2);
     light.position.set(cx, WALL_HEIGHT - 0.05, cz); // just below ceiling
     light.castShadow = false; // keep it fast
     group.add(light);

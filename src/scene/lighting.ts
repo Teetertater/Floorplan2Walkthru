@@ -34,15 +34,49 @@ export async function setupLighting(
 
   pmrem.dispose();
 
-  // Soft directional fill
-  const sun = new THREE.DirectionalLight(0xffffff, 0.3);
-  sun.position.set(5, 10, 3);
-  sun.castShadow = false;
+  // Exterior sun — outdoor shadows, window light spill
+  const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
+  sun.position.set(12, 15, 10);
+  sun.target.position.set(4, 0, 6);
+  scene.add(sun.target);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = 40;
+  sun.shadow.camera.left = -15;
+  sun.shadow.camera.right = 15;
+  sun.shadow.camera.top = 15;
+  sun.shadow.camera.bottom = -15;
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.02;
+  sun.shadow.radius = 3;
   scene.add(sun);
 
-  // Hemisphere
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.3));
+  // Interior ceiling light — casts furniture shadows onto floor and walls.
+  // Positioned just below ceiling (y=2.1) pointing straight down.
+  // Uses a separate shadow map so it's not blocked by the ceiling.
+  const interiorLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  interiorLight.position.set(4, 2.1, 6);
+  interiorLight.target.position.set(4, 0, 6);
+  scene.add(interiorLight.target);
+  interiorLight.castShadow = true;
+  interiorLight.shadow.mapSize.width = 2048;
+  interiorLight.shadow.mapSize.height = 2048;
+  interiorLight.shadow.camera.near = 0.01;
+  interiorLight.shadow.camera.far = 3;
+  interiorLight.shadow.camera.left = -12;
+  interiorLight.shadow.camera.right = 12;
+  interiorLight.shadow.camera.top = 12;
+  interiorLight.shadow.camera.bottom = -12;
+  interiorLight.shadow.bias = -0.001;
+  interiorLight.shadow.normalBias = 0.02;
+  interiorLight.shadow.radius = 4;
+  scene.add(interiorLight);
 
-  // Ambient
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  // Hemisphere for soft sky/ground bounce
+  scene.add(new THREE.HemisphereLight(0xddeeff, 0x665544, 0.25));
+
+  // Low ambient fill to prevent pitch-black corners
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
 }
