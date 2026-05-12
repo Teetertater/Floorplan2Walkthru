@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 
 export async function setupLighting(
   scene: THREE.Scene,
@@ -7,25 +7,27 @@ export async function setupLighting(
 ): Promise<void> {
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
-  const loader = new RGBELoader();
+  const loader = new HDRLoader();
 
-  // Studio HDRI for indoor environment lighting (soft, even reflections)
+  // Indoor HDRI for environment lighting (reflections/IBL)
   try {
-    const studioHdri = await loader.loadAsync('/hdri/studio_small_08_1k.hdr');
-    const envMap = pmrem.fromEquirectangular(studioHdri).texture;
+    const indoorHdri = await loader.loadAsync('/hdri/mud_road_puresky_1k.hdr');
+    const envMap = pmrem.fromEquirectangular(indoorHdri).texture;
     scene.environment = envMap;
-    studioHdri.dispose();
-    console.log('Studio environment loaded');
+    scene.environmentIntensity = 1;
+    indoorHdri.dispose();
+    console.log('Indoor environment HDRI loaded');
   } catch {
-    console.warn('Studio HDRI not found');
+    console.warn('Indoor HDRI not found');
   }
 
-  // Outdoor HDRI as scene background (visible through windows)
+  // Outdoor HDRI as background (visible through windows)
   try {
-    const bgHdri = await loader.loadAsync('/hdri/horn-koppe_spring_2k.hdr');
-    const bgMap = pmrem.fromEquirectangular(bgHdri).texture;
+    const outdoorHdri = await loader.loadAsync('/hdri/horn-koppe_spring_2k.hdr');
+    const bgMap = pmrem.fromEquirectangular(outdoorHdri).texture;
     scene.background = bgMap;
-    bgHdri.dispose();
+    scene.backgroundIntensity = 1.0;
+    outdoorHdri.dispose();
     console.log('Background HDRI loaded');
   } catch {
     console.warn('Background HDRI not found, using sky color');
@@ -35,7 +37,7 @@ export async function setupLighting(
   pmrem.dispose();
 
   // Exterior sun — outdoor shadows, window light spill
-  const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
+  const sun = new THREE.DirectionalLight(0xfff5e6, 0.8);
   sun.position.set(12, 15, 10);
   sun.target.position.set(4, 0, 6);
   scene.add(sun.target);
@@ -54,9 +56,7 @@ export async function setupLighting(
   scene.add(sun);
 
   // Interior ceiling light — casts furniture shadows onto floor and walls.
-  // Positioned just below ceiling (y=2.1) pointing straight down.
-  // Uses a separate shadow map so it's not blocked by the ceiling.
-  const interiorLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  const interiorLight = new THREE.DirectionalLight(0xfff8ee, 0.8);
   interiorLight.position.set(4, 2.1, 6);
   interiorLight.target.position.set(4, 0, 6);
   scene.add(interiorLight.target);
@@ -75,8 +75,8 @@ export async function setupLighting(
   scene.add(interiorLight);
 
   // Hemisphere for soft sky/ground bounce
-  scene.add(new THREE.HemisphereLight(0xddeeff, 0x665544, 0.25));
+  scene.add(new THREE.HemisphereLight(0xddeeff, 0x665544, 0.3));
 
-  // Low ambient fill to prevent pitch-black corners
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  // Warm ambient fill to prevent pitch-black corners
+  scene.add(new THREE.AmbientLight(0xfff5e8, 0.3));
 }

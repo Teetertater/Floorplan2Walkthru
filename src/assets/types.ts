@@ -1,14 +1,15 @@
 export interface FurnitureMeta {
   id: string;                // directory name, e.g. "Sofa_01_1k.gltf"
   name: string;              // human-readable, e.g. "Classic Sofa"
-  category: 'seating' | 'table' | 'storage' | 'desk' | 'lighting' | 'decor';
+  category: 'seating' | 'table' | 'storage' | 'desk' | 'lighting' | 'decor' | 'set';
   style: string[];           // e.g. ["mid-century", "modern"]
   dimensions: { w: number; h: number; d: number }; // meters (bounding box)
   description: string;       // rich text for agent context
   gltfPath: string;          // relative to /assets/furniture/, e.g. "Sofa_01_1k.gltf/Sofa_01_1k.gltf"
   placement: 'floor' | 'wall' | 'ceiling';
   scaleRange: { min: number; max: number }; // acceptable uniform scale range
-  thumbnailPath?: string; // path to webp preview, relative to /assets/thumbnails/
+  thumbnailPath?: string; // path to webp/png preview, relative to /assets/thumbnails/
+  emitsLight?: boolean;  // if true, placing this adds a PointLight to the scene
 }
 
 export interface MaterialMeta {

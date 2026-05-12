@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
+    "mp4-muxer": "^5.2.2",
     "postprocessing": "^6.39.1",
     "three": "^0.184.0",
     "typescript": "^6.0.3",

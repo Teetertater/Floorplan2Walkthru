@@ -68,9 +68,14 @@ export class EditModeController {
 
   // Selection
   private selectedInstanceId: string | null = null;
+  private gizmoMode: 'move' | 'scale' = 'move';
   private isDragging = false;
+  private didDrag = false;
   private dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private dragOffset = new THREE.Vector3();
+  private dragStartScale = 1;
+  private lastScreenY = 0;
+  private pendingModeToggle = false;
 
   // Wall highlight
   private highlightedWallMeshes: THREE.Mesh[] = [];
@@ -79,6 +84,7 @@ export class EditModeController {
 
   // UI elements
   private badge: HTMLElement;
+  private gizmoLabel: HTMLElement;
   private surfaceMenu: HTMLElement;
   private objectPickerOverlay: HTMLElement;
   private objectPickerSearch: HTMLInputElement;
@@ -90,7 +96,10 @@ export class EditModeController {
   private colourIntensityInput: HTMLInputElement;
   private colourIntensityVal: HTMLElement;
   private pickerCallback: ((id: string) => void) | null = null;
+  private pickerPlacementFilter: 'floor' | 'wall' | 'ceiling' | null = null;
   private surfaceMenuTarget: HitInfo | null = null;
+  private furnitureMenu: HTMLElement;
+  private furnitureMenuTargetId: string | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -106,6 +115,7 @@ export class EditModeController {
     this.onStateChange = onStateChange;
 
     this.badge = document.getElementById('edit-mode-badge')!;
+    this.gizmoLabel = document.getElementById('gizmo-label')!;
     this.surfaceMenu = document.getElementById('surface-menu')!;
     this.objectPickerOverlay = document.getElementById('object-picker-overlay')!;
     this.objectPickerSearch = document.getElementById('object-picker-search') as HTMLInputElement;
@@ -116,6 +126,7 @@ export class EditModeController {
     this.colourPickerInput = document.getElementById('colour-picker-input') as HTMLInputElement;
     this.colourIntensityInput = document.getElementById('colour-intensity') as HTMLInputElement;
     this.colourIntensityVal = document.getElementById('colour-intensity-val')!;
+    this.furnitureMenu = document.getElementById('furniture-menu')!;
 
     this.bindEvents();
   }
@@ -137,6 +148,7 @@ export class EditModeController {
       this.clearHover();
       this.clearWallHighlights();
       this.closeSurfaceMenu();
+      this.closeFurnitureMenu();
       this.closeObjectPicker();
       this.closeTexturePicker();
       this.closeColourPicker();
@@ -163,7 +175,13 @@ export class EditModeController {
     return this.objectPickerOverlay.classList.contains('visible') ||
            this.texturePickerOverlay.classList.contains('visible') ||
            this.colourPickerOverlay.classList.contains('visible') ||
-           this.surfaceMenu.classList.contains('visible');
+           this.surfaceMenu.classList.contains('visible') ||
+           this.furnitureMenu.classList.contains('visible');
+  }
+
+  /** True when the search input is focused (used to suppress global keybinds) */
+  get isSearchFocused(): boolean {
+    return document.activeElement === this.objectPickerSearch;
   }
 
   // ── Events ──
@@ -182,7 +200,27 @@ export class EditModeController {
       this.closeSurfaceMenu();
       if (action === 'retexture') this.openTexturePicker();
       if (action === 'colour') this.openColourPicker();
-      if (action === 'add') this.openObjectPicker((id) => this.addFurnitureAtPoint(id));
+      if (action === 'add') {
+        const targetType = this.surfaceMenuTarget?.type;
+        const filter = targetType === 'wall' ? 'wall' as const
+          : targetType === 'ceiling' ? 'ceiling' as const
+          : 'floor' as const;
+        this.openObjectPicker((id) => this.addFurnitureAtPoint(id), filter);
+      }
+    });
+
+    // Furniture context menu
+    this.furnitureMenu.addEventListener('click', (e) => {
+      const action = (e.target as HTMLElement).dataset.action;
+      if (!action) return;
+      const targetId = this.furnitureMenuTargetId;
+      this.closeFurnitureMenu();
+      if (!targetId) return;
+      if (action === 'swap') {
+        const meta = getFurnitureById(this.findSceneObject(targetId)?.userData?.assetId);
+        this.openObjectPicker((newId) => this.swapFurniture(targetId, newId), meta?.placement);
+      }
+      if (action === 'delete') this.deleteFurniture(targetId);
     });
 
     // Object picker
@@ -225,6 +263,8 @@ export class EditModeController {
           this.closeTexturePicker();
         } else if (this.colourPickerOverlay.classList.contains('visible')) {
           this.closeColourPicker();
+        } else if (this.furnitureMenu.classList.contains('visible')) {
+          this.closeFurnitureMenu();
         } else if (this.surfaceMenu.classList.contains('visible')) {
           this.closeSurfaceMenu();
         } else if (this.selectedInstanceId) {
@@ -272,10 +312,14 @@ export class EditModeController {
     return { type: 'none', object: null, point: new THREE.Vector3() };
   }
 
+  private static KNOWN_TYPES = new Set(['furniture', 'wall', 'lintel', 'floor', 'ceiling', 'ground', 'door_frame', 'window_pane']);
+
   private findUserData(obj: THREE.Object3D): Record<string, unknown> | null {
     let cur: THREE.Object3D | null = obj;
     while (cur) {
-      if (cur.userData?.type) return cur.userData;
+      if (cur.userData?.type && EditModeController.KNOWN_TYPES.has(cur.userData.type as string)) {
+        return cur.userData;
+      }
       cur = cur.parent;
     }
     return null;
@@ -297,7 +341,7 @@ export class EditModeController {
     this.updateMouse(e);
 
     if (this.isDragging && this.selectedInstanceId) {
-      this.dragSelected();
+      this.dragSelected(e);
       return;
     }
 
@@ -334,12 +378,16 @@ export class EditModeController {
     if (this.isModalOpen()) return;
 
     if (e.button === 0) {
-      // Left-click: furniture select/drag
+      // Left-click: dismiss any context menus first
+      this.closeSurfaceMenu();
+      this.closeFurnitureMenu();
       this.updateMouse(e);
       const hit = this.raycast();
-
       if (hit.type === 'furniture' && hit.instanceId) {
         if (this.selectedInstanceId === hit.instanceId) {
+          // Start drag; if user releases without moving, toggle mode
+          this.pendingModeToggle = true;
+          this.didDrag = false;
           this.startDrag(hit);
         } else {
           this.deselect();
@@ -354,12 +402,16 @@ export class EditModeController {
     } else if (e.button === 2) {
       // Right-click: context actions
       e.preventDefault();
+      this.closeSurfaceMenu();
+      this.closeFurnitureMenu();
       this.updateMouse(e);
       const hit = this.raycast();
 
       if (hit.type === 'furniture' && hit.instanceId) {
+        const [mx, my] = this.menuPosition(e);
         this.exitPointerLock();
-        this.openObjectPicker((newId) => this.swapFurniture(hit.instanceId!, newId));
+        this.furnitureMenuTargetId = hit.instanceId;
+        this.showFurnitureMenu(mx, my);
       } else if (hit.type === 'wall') {
         const [mx, my] = this.menuPosition(e);
         this.exitPointerLock();
@@ -379,7 +431,15 @@ export class EditModeController {
   private onMouseUp() {
     if (this.isDragging) {
       this.isDragging = false;
-      this.syncPlacementFromScene();
+      if (this.pendingModeToggle && !this.didDrag) {
+        // Click without drag → toggle mode
+        this.gizmoMode = this.gizmoMode === 'move' ? 'scale' : 'move';
+        this.updateGizmoLabel();
+      } else {
+        this.syncPlacementFromScene();
+      }
+      this.pendingModeToggle = false;
+      this.didDrag = false;
     }
   }
 
@@ -388,6 +448,8 @@ export class EditModeController {
 
   private selectFurniture(instanceId: string) {
     this.selectedInstanceId = instanceId;
+    this.gizmoMode = 'move';
+    this.updateGizmoLabel();
     const obj = this.findSceneObject(instanceId);
     if (obj) setEmissive(obj, 0x336699);
   }
@@ -397,6 +459,17 @@ export class EditModeController {
       const obj = this.findSceneObject(this.selectedInstanceId);
       if (obj) restoreEmissive(obj);
       this.selectedInstanceId = null;
+    }
+    this.gizmoMode = 'move';
+    this.updateGizmoLabel();
+  }
+
+  private updateGizmoLabel() {
+    if (this.selectedInstanceId) {
+      this.gizmoLabel.textContent = this.gizmoMode === 'move' ? '↕ Move / Rotate' : '⤡ Scale / Height';
+      this.gizmoLabel.classList.add('visible');
+    } else {
+      this.gizmoLabel.classList.remove('visible');
     }
   }
 
@@ -414,31 +487,55 @@ export class EditModeController {
     this.isDragging = true;
     const obj = this.findSceneObject(this.selectedInstanceId!);
     if (obj) {
+      // Set drag plane at the object's Y height so ceiling/wall items drag correctly
+      this.dragPlane.set(new THREE.Vector3(0, 1, 0), -obj.position.y);
       this.dragOffset.copy(obj.position).sub(hit.point);
       this.dragOffset.y = 0;
+      const baseScale = (obj.userData?.baseScale as number) || 1;
+      this.dragStartScale = obj.scale.x / baseScale;
     }
   }
 
-  private dragSelected() {
+  private dragSelected(e: MouseEvent) {
     const obj = this.findSceneObject(this.selectedInstanceId!);
     if (!obj) return;
+    this.didDrag = true;
 
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const target = new THREE.Vector3();
-    if (this.raycaster.ray.intersectPlane(this.dragPlane, target)) {
-      obj.position.x = target.x + this.dragOffset.x;
-      obj.position.z = target.z + this.dragOffset.z;
+    if (this.gizmoMode === 'move') {
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const target = new THREE.Vector3();
+      if (this.raycaster.ray.intersectPlane(this.dragPlane, target)) {
+        obj.position.x = target.x + this.dragOffset.x;
+        obj.position.z = target.z + this.dragOffset.z;
+      }
+    } else {
+      // Scale mode: accumulate raw movementY pixels
+      // Drag up (negative movementY) = bigger, drag down = smaller
+      // 45 degrees ≈ half screen height. Use multiplicative scaling so it feels natural.
+      const pixelDelta = -e.movementY;
+      const factor = Math.pow(2, pixelDelta / (window.innerHeight * 0.5));
+      const baseScale = (obj.userData?.baseScale as number) || 1;
+      const currentUserScale = obj.scale.x / baseScale;
+      const newUserScale = Math.max(0.02, currentUserScale * factor);
+      obj.scale.setScalar(baseScale * newUserScale);
     }
   }
 
-  // ── Scroll to rotate ──
+  // ── Scroll to rotate / raise-lower ──
 
   private onWheel(e: WheelEvent) {
     if (!this.enabled || !this.selectedInstanceId) return;
     e.preventDefault();
     const obj = this.findSceneObject(this.selectedInstanceId);
     if (!obj) return;
-    obj.rotation.y += THREE.MathUtils.degToRad(e.deltaY > 0 ? -5 : 5);
+
+    if (this.gizmoMode === 'move') {
+      // Rotate
+      obj.rotation.y += THREE.MathUtils.degToRad(e.deltaY > 0 ? -5 : 5);
+    } else {
+      // Raise / lower
+      obj.position.y += e.deltaY > 0 ? -0.05 : 0.05;
+    }
     this.syncPlacementFromScene();
   }
 
@@ -453,6 +550,8 @@ export class EditModeController {
     if (p) {
       p.position = [obj.position.x, obj.position.y, obj.position.z];
       p.rotation = THREE.MathUtils.radToDeg(obj.rotation.y);
+      const baseScale = (obj.userData?.baseScale as number) || 1;
+      p.scale = obj.scale.x / baseScale;
       this.onStateChange();
     }
   }
@@ -581,11 +680,33 @@ export class EditModeController {
     this.surfaceMenu.classList.remove('visible');
   }
 
+  // ── Furniture context menu ──
+
+  private showFurnitureMenu(x: number, y: number) {
+    this.furnitureMenu.style.left = `${x}px`;
+    this.furnitureMenu.style.top = `${y}px`;
+    this.furnitureMenu.classList.add('visible');
+  }
+
+  private closeFurnitureMenu() {
+    this.furnitureMenu.classList.remove('visible');
+    this.furnitureMenuTargetId = null;
+  }
+
+  private deleteFurniture(instanceId: string) {
+    if (!this.sceneState) return;
+    this.deselect();
+    this.furnitureManager.remove(instanceId);
+    this.sceneState.furniture = this.sceneState.furniture.filter(f => f.instanceId !== instanceId);
+    this.onStateChange();
+  }
+
   // ── Object picker ──
 
-  private openObjectPicker(callback: (assetId: string) => void) {
+  private openObjectPicker(callback: (assetId: string) => void, placementFilter?: 'floor' | 'wall' | 'ceiling') {
     this.exitPointerLock();
     this.pickerCallback = callback;
+    this.pickerPlacementFilter = placementFilter ?? null;
     this.objectPickerSearch.value = '';
     this.renderObjectPickerGrid();
     this.objectPickerOverlay.classList.add('visible');
@@ -599,13 +720,15 @@ export class EditModeController {
 
   private renderObjectPickerGrid() {
     const query = this.objectPickerSearch.value.toLowerCase();
-    const filtered = FURNITURE_CATALOG.filter(f =>
-      !query ||
-      f.name.toLowerCase().includes(query) ||
-      f.category.includes(query) ||
-      f.style.some(s => s.includes(query)) ||
-      f.description.toLowerCase().includes(query)
-    );
+    const pf = this.pickerPlacementFilter;
+    const filtered = FURNITURE_CATALOG.filter(f => {
+      if (pf && f.placement !== pf) return false;
+      if (!query) return true;
+      return f.name.toLowerCase().includes(query) ||
+        f.category.includes(query) ||
+        f.style.some(s => s.includes(query)) ||
+        f.description.toLowerCase().includes(query);
+    });
 
     this.objectPickerGrid.innerHTML = '';
     for (const item of filtered) {
@@ -947,8 +1070,8 @@ export class EditModeController {
     if (!meta) return;
 
     const point = this.surfaceMenuTarget.point;
-    const idx = this.sceneState.furniture.filter(f => f.assetId === assetId).length;
-    const instanceId = `${assetId}_${idx}`;
+    // Generate a globally unique instanceId
+    const instanceId = `${assetId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
     let roomId = 'unknown';
     if (this.plan) {
@@ -960,11 +1083,19 @@ export class EditModeController {
       }
     }
 
+    // Set y based on placement type
+    let y = 0;
+    if (meta.placement === 'ceiling') {
+      y = 2.2 - meta.dimensions.h; // hang from ceiling
+    } else if (meta.placement === 'wall') {
+      y = 1.4; // center on wall at eye-ish height
+    }
+
     const placement: FurniturePlacement = {
       assetId,
       instanceId,
       roomId,
-      position: [point.x, 0, point.z],
+      position: [point.x, y, point.z],
       rotation: 0,
       scale: 1,
     };

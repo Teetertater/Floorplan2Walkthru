@@ -10,6 +10,11 @@ import {
   SSAOEffect,
   BlendFunction,
   NormalPass,
+  ChromaticAberrationEffect,
+  NoiseEffect,
+  LensDistortionEffect,
+  DepthOfFieldEffect,
+  LUT3DEffect,
 } from 'postprocessing';
 
 import { parseCubiCasa } from './cubicasa/parser';
@@ -29,6 +34,49 @@ import {
 } from './state/storage';
 import { DEFAULT_SCENES } from './state/defaults';
 import { BirdsEyeRenderer } from './scene/birdsEye';
+import { GBufferRecorder } from './ui/gbufferRecorder';
+
+// ── Warm arch-viz LUT ──
+function createWarmArchVizLUT(size = 16): THREE.Data3DTexture {
+  const data = new Uint8Array(size * size * size * 4);
+  for (let b = 0; b < size; b++) {
+    for (let g = 0; g < size; g++) {
+      for (let r = 0; r < size; r++) {
+        const idx = (b * size * size + g * size + r) * 4;
+        let rr = r / (size - 1);
+        let gg = g / (size - 1);
+        let bb = b / (size - 1);
+
+        // Lift shadows slightly (reduces harsh black)
+        rr = rr * 0.92 + 0.04;
+        gg = gg * 0.92 + 0.03;
+        bb = bb * 0.92 + 0.02;
+
+        // Warm push: boost reds/yellows, cool blues slightly
+        rr = Math.pow(rr, 0.95);
+        gg = Math.pow(gg, 0.98);
+        bb = Math.pow(bb, 1.06);
+
+        // Gentle S-curve for contrast (per channel)
+        rr = rr - 0.12 * Math.sin(2 * Math.PI * rr);
+        gg = gg - 0.10 * Math.sin(2 * Math.PI * gg);
+        bb = bb - 0.08 * Math.sin(2 * Math.PI * bb);
+
+        data[idx]     = Math.round(Math.max(0, Math.min(1, rr)) * 255);
+        data[idx + 1] = Math.round(Math.max(0, Math.min(1, gg)) * 255);
+        data[idx + 2] = Math.round(Math.max(0, Math.min(1, bb)) * 255);
+        data[idx + 3] = 255;
+      }
+    }
+  }
+  const tex = new THREE.Data3DTexture(data, size, size, size);
+  tex.format = THREE.RGBAFormat;
+  tex.type = THREE.UnsignedByteType;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 // ── Renderer ──
 const renderer = new THREE.WebGLRenderer({
@@ -40,9 +88,9 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
+renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
 
@@ -68,30 +116,55 @@ composer.addPass(normalPass);
 
 const ssaoEffect = new SSAOEffect(camera, normalPass.texture, {
   blendFunction: BlendFunction.MULTIPLY,
-  samples: 16,
-  rings: 4,
-  worldDistanceThreshold: 0.5,
-  worldDistanceFalloff: 0.1,
-  worldProximityThreshold: 0.3,
-  worldProximityFalloff: 0.1,
-  luminanceInfluence: 0.7,
-  radius: 0.04,
-  intensity: 2.0,
-  bias: 0.025,
-  fade: 0.01,
+  samples: 32,
+  rings: 5,
+  worldDistanceThreshold: 1.5,
+  worldDistanceFalloff: 0.3,
+  worldProximityThreshold: 0.5,
+  worldProximityFalloff: 0.2,
+  luminanceInfluence: 0.6,
+  radius: 0.06,
+  intensity: 1.2,
+  bias: 0.02,
+  fade: 0.02,
 });
 
 const bloomEffect = new BloomEffect({
-  intensity: 0.15,
-  luminanceThreshold: 0.8,
-  luminanceSmoothing: 0.3,
+  intensity: 0,
+  luminanceThreshold: 0.6,
+  luminanceSmoothing: 0.4,
   mipmapBlur: true,
 });
 
 const smaaEffect = new SMAAEffect({ preset: SMAAPreset.HIGH });
-const vignetteEffect = new VignetteEffect({ darkness: 0.35, offset: 0.3 });
+const vignetteEffect = new VignetteEffect({ darkness: 0.4, offset: 0.25 });
 
-composer.addPass(new EffectPass(camera, ssaoEffect, bloomEffect, smaaEffect, vignetteEffect));
+const chromaticAberrationEffect = new ChromaticAberrationEffect({
+  offset: new THREE.Vector2(0.0008, 0.0008),
+  radialModulation: true,
+  modulationOffset: 0.3,
+});
+
+const noiseEffect = new NoiseEffect({
+  blendFunction: BlendFunction.OVERLAY,
+});
+noiseEffect.blendMode.opacity.value = 0.04;
+
+const lensDistortionEffect = new LensDistortionEffect({
+  distortion: new THREE.Vector2(0.03, 0.03),
+  principalPoint: new THREE.Vector2(0, 0),
+  focalLength: new THREE.Vector2(1, 1),
+  skew: 0,
+});
+
+const depthOfFieldEffect = new DepthOfFieldEffect(camera, {
+  focusDistance: 0.02,
+  focalLength: 0.05,
+  bokehScale: 2.5,
+});
+
+composer.addPass(new EffectPass(camera, ssaoEffect, bloomEffect, vignetteEffect, noiseEffect, smaaEffect));
+composer.addPass(new EffectPass(camera, chromaticAberrationEffect));
 
 // ── Materials ──
 const materials = createMaterials();
@@ -254,9 +327,15 @@ const picker = new SessionPicker(
   },
 );
 
+// ── G-buffer recorder ──
+const gbufferRecorder = new GBufferRecorder(scene, camera, renderer);
+
 // ── Keyboard shortcuts ──
 let minimapVisible = true;
 window.addEventListener('keydown', (e) => {
+  // Suppress all shortcuts when typing in a search field
+  if (editMode.isSearchFocused) return;
+
   if (e.key === 'e' || e.key === 'E') {
     editMode.toggle();
   }
@@ -265,12 +344,18 @@ window.addEventListener('keydown', (e) => {
     (document.getElementById('minimap-container') as HTMLElement).style.display =
       minimapVisible ? '' : 'none';
   }
-  if (e.key === 'b' || e.key === 'B') {
-    if (!currentPlan || !currentSceneState) return;
-    if (birdsEye.isVisible) {
-      birdsEye.hideOverlay();
-    } else {
-      birdsEye.showOverlay(currentPlan, currentSceneState.furniture);
+  // B and C are disabled in edit mode
+  if (!editMode.isEnabled) {
+    if (e.key === 'c' || e.key === 'C') {
+      gbufferRecorder.toggle();
+    }
+    if (e.key === 'b' || e.key === 'B') {
+      if (!currentPlan || !currentSceneState) return;
+      if (birdsEye.isVisible) {
+        birdsEye.hideOverlay();
+      } else {
+        birdsEye.showOverlay(currentPlan, currentSceneState.furniture);
+      }
     }
   }
 });
@@ -330,6 +415,8 @@ function animate() {
       roomLabel.style.opacity = newName ? '1' : '0';
     }
   }
+
+  gbufferRecorder.captureFrame();
 
   if (minimapVisible) minimap.render(camera);
   composer.render();

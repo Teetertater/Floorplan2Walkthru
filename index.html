@@ -119,6 +119,16 @@
       display: none;
       letter-spacing: 0.5px;
     }
+    #gizmo-label {
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.3);
+      font-size: 11px;
+      font-weight: 400;
+      display: none;
+    }
+    #gizmo-label.visible { display: inline; }
 
     /* Object picker modal */
     #object-picker-overlay {
@@ -206,7 +216,18 @@
       overflow: hidden;
       min-width: 160px;
     }
-    #surface-menu.visible { display: block; }
+    #surface-menu.visible, #furniture-menu.visible { display: block; }
+    #furniture-menu {
+      position: fixed;
+      z-index: 150;
+      display: none;
+      font-family: system-ui, sans-serif;
+      background: #1e1e2a;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      min-width: 160px;
+    }
     .surface-menu-item {
       padding: 10px 16px;
       cursor: pointer;
@@ -308,10 +329,11 @@
     <div><kbd>E</kbd> Toggle edit mode</div>
     <div><kbd>M</kbd> Toggle minimap</div>
     <div><kbd>B</kbd> Bird's-eye view</div>
+    <div><kbd>C</kbd> Record G-buffer</div>
     <div><kbd>Minimap</kbd> Click to teleport</div>
   </div>
 
-  <div id="edit-mode-badge">EDIT MODE</div>
+  <div id="edit-mode-badge">EDIT MODE <span id="gizmo-label"></span></div>
 
   <div id="minimap-container">
     <div id="room-label"></div>
@@ -333,6 +355,13 @@
     <div class="surface-menu-item" data-action="retexture">Change Texture</div>
     <div class="surface-menu-item" data-action="colour">Pick Colour</div>
     <div class="surface-menu-item" data-action="add">Add Furniture</div>
+    <div class="surface-menu-item cancel" data-action="cancel">Cancel</div>
+  </div>
+
+  <!-- Furniture context menu -->
+  <div id="furniture-menu">
+    <div class="surface-menu-item" data-action="swap">Swap Model</div>
+    <div class="surface-menu-item" data-action="delete" style="color:#f66;">Delete</div>
     <div class="surface-menu-item cancel" data-action="cancel">Cancel</div>
   </div>
 

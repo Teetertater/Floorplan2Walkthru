@@ -41,7 +41,6 @@ export class NavigationController {
   private euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
   private onModeChange: ((mode: MouseMode) => void) | null = null;
-
   constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     this.camera = camera;
     this.camera.position.y = EYE_HEIGHT;
@@ -49,6 +48,7 @@ export class NavigationController {
     this.pointerLock = new PointerLockControls(camera, domElement);
 
     document.addEventListener('keydown', (e) => {
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
       switch (e.code) {
         case 'KeyW': case 'ArrowUp': this.moveForward = true; break;
         case 'KeyS': case 'ArrowDown': this.moveBackward = true; break;

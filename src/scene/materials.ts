@@ -47,13 +47,15 @@ export function createMaterials() {
 
   // Floor: laminate with visible reflections
   const fr: [number, number] = [0.5, 0.5];
-  const floor = new THREE.MeshStandardMaterial({
+  const floor = new THREE.MeshPhysicalMaterial({
     map: loadTex('/textures/laminate_floor/diff.jpg', fr),
     normalMap: loadData('/textures/laminate_floor/nor_gl.jpg', fr),
     roughnessMap: loadData('/textures/laminate_floor/rough.jpg', fr),
-    roughness: 0.6,
+    roughness: 0.45,
     metalness: 0.0,
-    envMapIntensity: 0.8,
+    envMapIntensity: 1.2,
+    clearcoat: 0.15,
+    clearcoatRoughness: 0.3,
     side: THREE.DoubleSide,
   });
 
@@ -76,12 +78,14 @@ export function createMaterials() {
     metalness: 0.05,
   });
 
-  const windowPane = new THREE.MeshStandardMaterial({
-    color: 0xaaddff,
-    roughness: 0.05,
-    metalness: 0.1,
-    transparent: true,
-    opacity: 0.3,
+  const windowPane = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    roughness: 0.0,
+    metalness: 0.0,
+    transmission: 0.95,
+    thickness: 0.01,
+    ior: 1.5,
+    envMapIntensity: 1.0,
     side: THREE.DoubleSide,
   });
 

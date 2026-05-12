@@ -385,8 +385,8 @@ function generateRoomLights(plan: Plan): THREE.Group {
     area = Math.abs(area) / 2;
 
     // Soft warm fill light, intensity scaled gently by room size
-    const intensity = Math.max(0.3, Math.min(1.0, area * 0.12));
-    const light = new THREE.PointLight(0xfff5e8, intensity, 12, 2);
+    const intensity = Math.max(0.3, Math.min(1.0, area * 0.08));
+    const light = new THREE.PointLight(0xfff0dd, intensity, 8, 2);
     light.position.set(cx, WALL_HEIGHT - 0.05, cz); // just below ceiling
     light.castShadow = false; // keep it fast
     group.add(light);
@@ -455,7 +455,8 @@ export function generateScene(
   root.add(generateCeilingSlab(plan, materials.ceiling));
   root.add(generateDoorMeshes(plan, materials.doorFrame));
   root.add(generateWindowMeshes(plan, materials.windowPane));
-  root.add(generateRoomLights(plan));
+  // Room lights disabled — use furniture lights instead
+  // root.add(generateRoomLights(plan));
   root.add(generateGround(plan, materials.ground));
 
   return root;
