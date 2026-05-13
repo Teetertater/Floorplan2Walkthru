@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'postprocessing';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { setGBufferBlobs } from '../state/storage';
 
 // ── Types ──
 
@@ -24,6 +26,7 @@ export class GBufferRecorder {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private composer: EffectComposer;
 
   private recording = false;
   private keyframes: Keyframe[] = [];
@@ -36,14 +39,19 @@ export class GBufferRecorder {
   private progressBar!: HTMLElement;
   private progressText!: HTMLElement;
 
+  /** Called after g-buffer generation completes */
+  onGenerated?: () => void;
+
   constructor(
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     renderer: THREE.WebGLRenderer,
+    composer: EffectComposer,
   ) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.composer = composer;
     this.buildUI();
   }
 
@@ -151,6 +159,14 @@ export class GBufferRecorder {
       type: THREE.UnsignedByteType,
     });
 
+    // For the RGB pass, render through the full postprocessing composer
+    // so the output matches what the user sees (SSAO, bloom, etc.).
+    // We resize the composer to output dims, disable renderToScreen,
+    // and read from its outputBuffer.
+    const savedComposerSize = new THREE.Vector2();
+    this.renderer.getSize(savedComposerSize);
+    const savedAutoRender = this.composer.autoRenderToScreen;
+
     // Temp canvas for pixel transfer → VideoFrame
     const tmpCanvas = document.createElement('canvas');
     tmpCanvas.width = OUTPUT_WIDTH;
@@ -184,13 +200,42 @@ export class GBufferRecorder {
       side: THREE.DoubleSide,
     });
 
+    // Channel-extract shader for metallic/roughness.
+    // glTF packs metalness in B channel and roughness in G channel of the
+    // combined metalnessRoughnessMap. We need to extract the correct single
+    // channel and output it as grayscale.
+    const channelExtractVert = `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`;
+
+    function makeChannelExtractFrag(channel: string): string {
+      return `
+        uniform sampler2D tMap;
+        uniform float uValue;
+        uniform bool uHasMap;
+        varying vec2 vUv;
+        void main() {
+          float v = uValue;
+          if (uHasMap) {
+            vec4 texel = texture2D(tMap, vUv);
+            v *= texel.${channel};
+          }
+          gl_FragColor = vec4(vec3(v), 1.0);
+        }`;
+    }
+
     // Build per-mesh swap materials once (albedo, metallic, roughness)
-    const albedoMats = new Map<THREE.Mesh, THREE.MeshBasicMaterial>();
-    const metallicMats = new Map<THREE.Mesh, THREE.MeshBasicMaterial>();
-    const roughnessMats = new Map<THREE.Mesh, THREE.MeshBasicMaterial>();
+    const albedoMats = new Map<THREE.Mesh, THREE.Material>();
+    const metallicMats = new Map<THREE.Mesh, THREE.Material>();
+    const roughnessMats = new Map<THREE.Mesh, THREE.Material>();
 
     for (const [mesh, origMat] of meshMats) {
       const orig = (Array.isArray(origMat) ? origMat[0] : origMat) as THREE.MeshStandardMaterial;
+
+      // Albedo: unlit base color * texture
       albedoMats.set(mesh, new THREE.MeshBasicMaterial({
         map: orig.map ?? null,
         color: orig.color?.clone() ?? new THREE.Color(0xffffff),
@@ -198,51 +243,83 @@ export class GBufferRecorder {
         opacity: orig.opacity,
         side: orig.side ?? THREE.FrontSide,
       }));
-      const m = orig.metalness ?? 0;
-      metallicMats.set(mesh, new THREE.MeshBasicMaterial({
-        map: orig.metalnessMap ?? null,
-        color: new THREE.Color(m, m, m),
+
+      // Metallic: extract B channel from metalnessMap (glTF convention)
+      // If no map, use the scalar metalness value.
+      const metMap = orig.metalnessMap;
+      metallicMats.set(mesh, new THREE.ShaderMaterial({
+        vertexShader: channelExtractVert,
+        fragmentShader: makeChannelExtractFrag('b'),
+        uniforms: {
+          tMap: { value: metMap ?? null },
+          uValue: { value: orig.metalness ?? 0 },
+          uHasMap: { value: !!metMap },
+        },
         side: orig.side ?? THREE.FrontSide,
       }));
-      const r = orig.roughness ?? 0.5;
-      roughnessMats.set(mesh, new THREE.MeshBasicMaterial({
-        map: orig.roughnessMap ?? null,
-        color: new THREE.Color(r, r, r),
+
+      // Roughness: extract G channel from roughnessMap (glTF convention)
+      const roughMap = orig.roughnessMap;
+      roughnessMats.set(mesh, new THREE.ShaderMaterial({
+        vertexShader: channelExtractVert,
+        fragmentShader: makeChannelExtractFrag('g'),
+        uniforms: {
+          tMap: { value: roughMap ?? null },
+          uValue: { value: orig.roughness ?? 0.5 },
+          uHasMap: { value: !!roughMap },
+        },
         side: orig.side ?? THREE.FrontSide,
       }));
     }
 
+    // Fullscreen blit: copies composer's HalfFloat output → Uint8 RT for readback
+    const blitCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const blitMaterial = new THREE.MeshBasicMaterial();
+    const blitQuad = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      blitMaterial,
+    );
+    const blitScene = new THREE.Scene();
+    blitScene.add(blitQuad);
+
     const blobs: Record<string, Blob> = {};
 
     for (const passName of PASS_NAMES) {
-      // Setup pass
-      const isLit = passName === 'rgb';
-      if (!isLit) {
-        this.renderer.toneMapping = THREE.NoToneMapping;
-        this.renderer.toneMappingExposure = 1;
-        this.scene.background = new THREE.Color(0x000000);
-        this.scene.environment = null;
-      } else {
+      const isRGB = passName === 'rgb';
+
+      // ── Pass setup ──
+      if (isRGB) {
+        // RGB: render through composer with full postprocessing.
+        // Keep scene state as-is (lighting, env, tone mapping).
         this.renderer.toneMapping = savedToneMapping;
         this.renderer.toneMappingExposure = savedExposure;
         this.scene.background = savedBg;
         this.scene.environment = savedEnv;
+
+        this.composer.autoRenderToScreen = false;
+        this.composer.setSize(OUTPUT_WIDTH, OUTPUT_HEIGHT);
+      } else {
+        // Data passes: render raw to offscreen RT, no lighting/tonemapping
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = 1;
+        this.scene.background = new THREE.Color(0x000000);
+        this.scene.environment = null;
+
+        // Swap materials
+        if (passName === 'albedo') {
+          for (const [mesh, mat] of albedoMats) mesh.material = mat;
+        } else if (passName === 'metallic') {
+          for (const [mesh, mat] of metallicMats) mesh.material = mat;
+        } else if (passName === 'roughness') {
+          for (const [mesh, mat] of roughnessMats) mesh.material = mat;
+        } else if (passName === 'depth') {
+          this.scene.overrideMaterial = depthMat;
+        } else if (passName === 'normal') {
+          this.scene.overrideMaterial = normalMat;
+        }
       }
 
-      // Swap materials for the whole pass
-      if (passName === 'albedo') {
-        for (const [mesh, mat] of albedoMats) mesh.material = mat;
-      } else if (passName === 'metallic') {
-        for (const [mesh, mat] of metallicMats) mesh.material = mat;
-      } else if (passName === 'roughness') {
-        for (const [mesh, mat] of roughnessMats) mesh.material = mat;
-      } else if (passName === 'depth') {
-        this.scene.overrideMaterial = depthMat;
-      } else if (passName === 'normal') {
-        this.scene.overrideMaterial = normalMat;
-      }
-
-      // Encode pass
+      // ── Encode frames ──
       const { encoder, muxer, target } = this.createEncoder();
 
       for (let f = 0; f < totalFrames; f++) {
@@ -251,12 +328,31 @@ export class GBufferRecorder {
         this.camera.position.copy(position);
         this.camera.quaternion.copy(quaternion);
 
-        this.renderer.setRenderTarget(rt);
-        this.renderer.render(this.scene, this.camera);
-        this.renderer.readRenderTargetPixels(rt, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT, pixelBuf);
+        if (isRGB) {
+          // Render through composer (full postprocessing pipeline).
+          // Composer outputs to HalfFloat buffer — blit to Uint8 RT for readback.
+          this.composer.render();
+          blitMaterial.map = this.composer.outputBuffer.texture;
+          blitMaterial.needsUpdate = true;
+          this.renderer.setRenderTarget(rt);
+          this.renderer.render(blitScene, blitCamera);
+          this.renderer.readRenderTargetPixels(
+            rt, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT, pixelBuf,
+          );
+        } else {
+          // Render raw scene to offscreen RT
+          this.renderer.setRenderTarget(rt);
+          this.renderer.render(this.scene, this.camera);
+          this.renderer.readRenderTargetPixels(
+            rt, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT, pixelBuf,
+          );
+        }
 
         this.flipY(pixelBuf, OUTPUT_WIDTH, OUTPUT_HEIGHT);
-        const imageData = new ImageData(new Uint8ClampedArray(pixelBuf.buffer.slice(0)), OUTPUT_WIDTH, OUTPUT_HEIGHT);
+        const imageData = new ImageData(
+          new Uint8ClampedArray(pixelBuf.buffer.slice(0)),
+          OUTPUT_WIDTH, OUTPUT_HEIGHT,
+        );
         tmpCtx.putImageData(imageData, 0, 0);
 
         const vf = new VideoFrame(tmpCanvas, {
@@ -280,15 +376,22 @@ export class GBufferRecorder {
       muxer.finalize();
       blobs[passName] = new Blob([target.buffer!], { type: 'video/mp4' });
 
-      // Restore materials after this pass
-      if (passName === 'albedo' || passName === 'metallic' || passName === 'roughness') {
-        for (const [mesh, origMat] of meshMats) mesh.material = origMat;
+      // ── Tear down pass ──
+      if (isRGB) {
+        this.composer.autoRenderToScreen = savedAutoRender;
+        this.composer.setSize(savedComposerSize.x, savedComposerSize.y);
+      } else {
+        if (passName === 'albedo' || passName === 'metallic' || passName === 'roughness') {
+          for (const [mesh, origMat] of meshMats) mesh.material = origMat;
+        }
+        this.scene.overrideMaterial = null;
       }
-      this.scene.overrideMaterial = null;
     }
 
     // Cleanup
     rt.dispose();
+    blitMaterial.dispose();
+    blitQuad.geometry.dispose();
     normalMat.dispose();
     depthMat.dispose();
     for (const m of albedoMats.values()) m.dispose();
@@ -308,21 +411,16 @@ export class GBufferRecorder {
     this.scene.background = savedBg;
     this.scene.environment = savedEnv;
 
-    // Download each MP4
-    this.progressText.textContent = 'Downloading...';
-    for (const [name, blob] of Object.entries(blobs)) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${name}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
-      // Small delay between downloads so browser doesn't block them
-      await new Promise(r => setTimeout(r, 300));
-    }
+    // Store blobs in memory for inclusion in session ZIP
+    setGBufferBlobs(blobs);
+    this.progressText.textContent = 'Done — G-buffers saved to session.';
+    await new Promise(r => setTimeout(r, 1500));
 
     this.progressOverlay.style.display = 'none';
     this.keyframes = [];
+
+    // Notify listeners (e.g. auto-save)
+    if (this.onGenerated) this.onGenerated();
   }
 
   // ── Encoder setup ──

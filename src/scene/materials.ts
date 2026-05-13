@@ -21,13 +21,13 @@ function loadData(path: string, repeat?: [number, number]): THREE.Texture {
 }
 
 export function createMaterials() {
-  // Walls: white wall (beige texture tinted white)
+  // Walls: white plaster, pure white tint (100% intensity = no colour modulation)
   const wr: [number, number] = [0.7, 0.7];
   const wall = new THREE.MeshStandardMaterial({
-    map: loadTex('/textures/beige_wall/diff.jpg', wr),
-    normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
-    roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
-    color: 0xf0f0f0, // tint towards white
+    map: loadTex('/textures/white_plaster/diff.jpg', wr),
+    normalMap: loadData('/textures/white_plaster/nor_gl.jpg', wr),
+    roughnessMap: loadData('/textures/white_plaster/rough.jpg', wr),
+    color: 0xffffff,
     roughness: 0.95,
     metalness: 0.0,
     envMapIntensity: 0.3,
@@ -35,10 +35,10 @@ export function createMaterials() {
   });
 
   const lintel = new THREE.MeshStandardMaterial({
-    map: loadTex('/textures/beige_wall/diff.jpg', wr),
-    normalMap: loadData('/textures/beige_wall/nor_gl.jpg', wr),
-    roughnessMap: loadData('/textures/beige_wall/rough.jpg', wr),
-    color: 0xf0f0f0,
+    map: loadTex('/textures/white_plaster/diff.jpg', wr),
+    normalMap: loadData('/textures/white_plaster/nor_gl.jpg', wr),
+    roughnessMap: loadData('/textures/white_plaster/rough.jpg', wr),
+    color: 0xffffff,
     roughness: 0.95,
     metalness: 0.0,
     envMapIntensity: 0.3,
@@ -72,10 +72,12 @@ export function createMaterials() {
     side: THREE.DoubleSide,
   });
 
+  // Doorframe: painted white, no texture (100% intensity solid colour).
+  // This is the *template* — each door clones it so it can be restyled independently.
   const doorFrame = new THREE.MeshStandardMaterial({
-    color: 0x8b7355,
-    roughness: 0.4,
-    metalness: 0.05,
+    color: 0xffffff,
+    roughness: 0.55,
+    metalness: 0.0,
   });
 
   const windowPane = new THREE.MeshPhysicalMaterial({

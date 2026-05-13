@@ -5,7 +5,7 @@ import { TEXTURE_CATALOG, TextureMeta } from '../assets/textureCatalog';
 import { FurniturePlacement, SceneState, SurfaceStyle } from '../state/types';
 import { FurnitureManager } from '../scene/furniture';
 
-type HitType = 'furniture' | 'wall' | 'floor' | 'ceiling' | 'none';
+type HitType = 'furniture' | 'wall' | 'floor' | 'ceiling' | 'door' | 'none';
 
 interface HitInfo {
   type: HitType;
@@ -13,6 +13,7 @@ interface HitInfo {
   point: THREE.Vector3;
   instanceId?: string;
   wallId?: string;
+  doorId?: string;
 }
 
 // ── Emissive highlight helpers ──
@@ -62,6 +63,7 @@ export class EditModeController {
   private sceneState: SceneState | null = null;
   private furnitureManager: FurnitureManager;
   private onStateChange: () => void;
+  private onDoorTopologyChange: () => void;
 
   // Hover
   private hoveredObject: THREE.Object3D | null = null;
@@ -100,6 +102,11 @@ export class EditModeController {
   private surfaceMenuTarget: HitInfo | null = null;
   private furnitureMenu: HTMLElement;
   private furnitureMenuTargetId: string | null = null;
+  private doorMenu: HTMLElement;
+  private doorMenuTargetId: string | null = null;
+  // When colour/texture is applied through the door menu, this is set so the
+  // shared style routes to door:{doorId} rather than the wall behind it.
+  private doorStyleTargetId: string | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -107,12 +114,14 @@ export class EditModeController {
     domElement: HTMLElement,
     furnitureManager: FurnitureManager,
     onStateChange: () => void,
+    onDoorTopologyChange: () => void,
   ) {
     this.scene = scene;
     this.camera = camera;
     this.domElement = domElement;
     this.furnitureManager = furnitureManager;
     this.onStateChange = onStateChange;
+    this.onDoorTopologyChange = onDoorTopologyChange;
 
     this.badge = document.getElementById('edit-mode-badge')!;
     this.gizmoLabel = document.getElementById('gizmo-label')!;
@@ -127,6 +136,7 @@ export class EditModeController {
     this.colourIntensityInput = document.getElementById('colour-intensity') as HTMLInputElement;
     this.colourIntensityVal = document.getElementById('colour-intensity-val')!;
     this.furnitureMenu = document.getElementById('furniture-menu')!;
+    this.doorMenu = document.getElementById('door-menu')!;
 
     this.bindEvents();
   }
@@ -149,6 +159,7 @@ export class EditModeController {
       this.clearWallHighlights();
       this.closeSurfaceMenu();
       this.closeFurnitureMenu();
+      this.closeDoorMenu();
       this.closeObjectPicker();
       this.closeTexturePicker();
       this.closeColourPicker();
@@ -176,7 +187,8 @@ export class EditModeController {
            this.texturePickerOverlay.classList.contains('visible') ||
            this.colourPickerOverlay.classList.contains('visible') ||
            this.surfaceMenu.classList.contains('visible') ||
-           this.furnitureMenu.classList.contains('visible');
+           this.furnitureMenu.classList.contains('visible') ||
+           this.doorMenu.classList.contains('visible');
   }
 
   /** True when the search input is focused (used to suppress global keybinds) */
@@ -223,6 +235,24 @@ export class EditModeController {
       if (action === 'delete') this.deleteFurniture(targetId);
     });
 
+    // Door context menu
+    this.doorMenu.addEventListener('click', (e) => {
+      const action = (e.target as HTMLElement).dataset.action;
+      if (!action) return;
+      const doorId = this.doorMenuTargetId;
+      this.closeDoorMenu();
+      if (!doorId) return;
+      if (action === 'retexture') {
+        this.doorStyleTargetId = doorId;
+        this.openTexturePicker();
+      } else if (action === 'colour') {
+        this.doorStyleTargetId = doorId;
+        this.openColourPicker();
+      } else if (action === 'delete') {
+        this.deleteDoor(doorId);
+      }
+    });
+
     // Object picker
     this.objectPickerSearch.addEventListener('input', () => this.renderObjectPickerGrid());
     this.objectPickerOverlay.addEventListener('click', (e) => {
@@ -265,6 +295,8 @@ export class EditModeController {
           this.closeColourPicker();
         } else if (this.furnitureMenu.classList.contains('visible')) {
           this.closeFurnitureMenu();
+        } else if (this.doorMenu.classList.contains('visible')) {
+          this.closeDoorMenu();
         } else if (this.surfaceMenu.classList.contains('visible')) {
           this.closeSurfaceMenu();
         } else if (this.selectedInstanceId) {
@@ -298,6 +330,9 @@ export class EditModeController {
       if (ud.type === 'furniture') {
         return { type: 'furniture', object: this.findFurnitureRoot(hit.object), point: hit.point, instanceId: ud.instanceId as string };
       }
+      if (ud.type === 'door_frame' || ud.type === 'door_panel') {
+        return { type: 'door', object: hit.object, point: hit.point, doorId: ud.doorId as string };
+      }
       if (ud.type === 'wall' || ud.type === 'lintel') {
         return { type: 'wall', object: hit.object, point: hit.point, wallId: ud.wallId as string };
       }
@@ -312,7 +347,7 @@ export class EditModeController {
     return { type: 'none', object: null, point: new THREE.Vector3() };
   }
 
-  private static KNOWN_TYPES = new Set(['furniture', 'wall', 'lintel', 'floor', 'ceiling', 'ground', 'door_frame', 'window_pane']);
+  private static KNOWN_TYPES = new Set(['furniture', 'wall', 'lintel', 'floor', 'ceiling', 'ground', 'door_frame', 'door_panel', 'window_pane']);
 
   private findUserData(obj: THREE.Object3D): Record<string, unknown> | null {
     let cur: THREE.Object3D | null = obj;
@@ -381,6 +416,7 @@ export class EditModeController {
       // Left-click: dismiss any context menus first
       this.closeSurfaceMenu();
       this.closeFurnitureMenu();
+      this.closeDoorMenu();
       this.updateMouse(e);
       const hit = this.raycast();
       if (hit.type === 'furniture' && hit.instanceId) {
@@ -404,6 +440,7 @@ export class EditModeController {
       e.preventDefault();
       this.closeSurfaceMenu();
       this.closeFurnitureMenu();
+      this.closeDoorMenu();
       this.updateMouse(e);
       const hit = this.raycast();
 
@@ -412,6 +449,13 @@ export class EditModeController {
         this.exitPointerLock();
         this.furnitureMenuTargetId = hit.instanceId;
         this.showFurnitureMenu(mx, my);
+      } else if (hit.type === 'door' && hit.doorId) {
+        const [mx, my] = this.menuPosition(e);
+        this.exitPointerLock();
+        this.deselect();
+        this.clearWallHighlights();
+        this.doorMenuTargetId = hit.doorId;
+        this.showDoorMenu(mx, my);
       } else if (hit.type === 'wall') {
         const [mx, my] = this.menuPosition(e);
         this.exitPointerLock();
@@ -693,6 +737,31 @@ export class EditModeController {
     this.furnitureMenuTargetId = null;
   }
 
+  // ── Door context menu ──
+
+  private showDoorMenu(x: number, y: number) {
+    this.doorMenu.style.left = `${x}px`;
+    this.doorMenu.style.top = `${y}px`;
+    this.doorMenu.classList.add('visible');
+  }
+
+  private closeDoorMenu() {
+    this.doorMenu.classList.remove('visible');
+    this.doorMenuTargetId = null;
+  }
+
+  private deleteDoor(doorId: string) {
+    if (!this.sceneState) return;
+    if (!this.sceneState.deletedDoors) this.sceneState.deletedDoors = [];
+    if (!this.sceneState.deletedDoors.includes(doorId)) {
+      this.sceneState.deletedDoors.push(doorId);
+    }
+    // Drop any saved style for this door too — it'll come back fresh if re-added later.
+    if (this.sceneState.doorStyles) delete this.sceneState.doorStyles[doorId];
+    this.onStateChange();
+    this.onDoorTopologyChange();
+  }
+
   private deleteFurniture(instanceId: string) {
     if (!this.sceneState) return;
     this.deselect();
@@ -768,6 +837,7 @@ export class EditModeController {
 
   private closeTexturePicker() {
     this.texturePickerOverlay.classList.remove('visible');
+    this.doorStyleTargetId = null;
   }
 
   private renderTexturePickerGrid() {
@@ -855,6 +925,7 @@ export class EditModeController {
 
   private closeColourPicker() {
     this.colourPickerOverlay.classList.remove('visible');
+    this.doorStyleTargetId = null;
   }
 
   private applyColour(hex: string, intensity: number) {
@@ -896,7 +967,12 @@ export class EditModeController {
       mat.needsUpdate = true;
     }
     // Remove from saved state
-    if (this.sceneState?.surfaces) {
+    if (this.doorStyleTargetId) {
+      if (this.sceneState?.doorStyles) {
+        delete this.sceneState.doorStyles[this.doorStyleTargetId];
+        this.onStateChange();
+      }
+    } else if (this.sceneState?.surfaces) {
       delete this.sceneState.surfaces[this.getSurfaceKey()];
       this.onStateChange();
     }
@@ -905,6 +981,20 @@ export class EditModeController {
 
   /** Get the meshes to apply texture/colour to based on current selection */
   private getSurfaceTargets(): THREE.Mesh[] {
+    // Door styling: the frame mesh holds the shared material; the panel uses
+    // the same instance, so editing the frame's material updates both.
+    if (this.doorStyleTargetId) {
+      const meshes: THREE.Mesh[] = [];
+      this.scene.traverse((child) => {
+        if (!(child as THREE.Mesh).isMesh) return;
+        if (child.userData?.type === 'door_frame' &&
+            child.userData?.doorId === this.doorStyleTargetId) {
+          meshes.push(child as THREE.Mesh);
+        }
+      });
+      return meshes;
+    }
+
     // If walls are highlighted, apply to those
     if (this.highlightedWallMeshes.length > 0) return this.highlightedWallMeshes;
 
@@ -939,6 +1029,12 @@ export class EditModeController {
 
   private saveSurfaceStyle(style: SurfaceStyle) {
     if (!this.sceneState) return;
+    if (this.doorStyleTargetId) {
+      if (!this.sceneState.doorStyles) this.sceneState.doorStyles = {};
+      this.sceneState.doorStyles[this.doorStyleTargetId] = style;
+      this.onStateChange();
+      return;
+    }
     if (!this.sceneState.surfaces) this.sceneState.surfaces = {};
     this.sceneState.surfaces[this.getSurfaceKey()] = style;
     this.onStateChange();
@@ -1005,6 +1101,75 @@ export class EditModeController {
           mat.transparent = false;
           mat.opacity = 1;
           mat.roughness = 0.9;
+          mat.needsUpdate = true;
+        }
+      }
+    }
+  }
+
+  /** Apply all saved per-door styles to the current scene. Call after panels are placed. */
+  applySavedDoorStyles() {
+    if (!this.sceneState?.doorStyles) return;
+    const loader = new THREE.TextureLoader();
+
+    for (const [doorId, style] of Object.entries(this.sceneState.doorStyles)) {
+      const meshes: THREE.Mesh[] = [];
+      this.scene.traverse((child) => {
+        if (!(child as THREE.Mesh).isMesh) return;
+        if (child.userData?.type === 'door_frame' && child.userData?.doorId === doorId) {
+          meshes.push(child as THREE.Mesh);
+        }
+      });
+      if (meshes.length === 0) continue;
+
+      if (style.type === 'texture' && style.textureId) {
+        const tex = TEXTURE_CATALOG.find(t => t.id === style.textureId);
+        if (!tex) continue;
+        const loadT = (path: string, linear = false) => {
+          const t = loader.load(path);
+          t.colorSpace = linear ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(tex.tiling[0], tex.tiling[1]);
+          return t;
+        };
+        const diff = loadT(tex.diffPath);
+        const norm = tex.normalPath ? loadT(tex.normalPath, true) : null;
+        const rough = tex.roughPath ? loadT(tex.roughPath, true) : null;
+        for (const mesh of meshes) {
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          mat.map = diff;
+          if (norm) mat.normalMap = norm;
+          if (rough) mat.roughnessMap = rough;
+          if (style.colour) {
+            const picked = new THREE.Color(style.colour);
+            const intensity = style.opacity ?? 1;
+            if (intensity >= 0.99) mat.color.copy(picked);
+            else mat.color.copy(new THREE.Color(0xffffff).lerp(picked, intensity));
+          } else {
+            mat.color.setHex(0xffffff);
+          }
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.needsUpdate = true;
+        }
+      } else if (style.type === 'colour' && style.colour) {
+        const picked = new THREE.Color(style.colour);
+        const intensity = style.opacity ?? 1;
+        for (const mesh of meshes) {
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          if (intensity >= 0.99) {
+            mat.map = null;
+            mat.normalMap = null;
+            mat.roughnessMap = null;
+            mat.color.copy(picked);
+          } else {
+            const white = new THREE.Color(0xffffff);
+            mat.color.copy(white.lerp(picked, intensity));
+          }
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.roughness = 0.55;
           mat.needsUpdate = true;
         }
       }

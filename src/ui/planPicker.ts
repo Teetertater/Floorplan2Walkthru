@@ -1,5 +1,12 @@
-import { listSessions, deleteSession, exportSession, getSession, importSessionFromFile, saveSession } from '../state/storage';
+import {
+  listSessions, getSession, saveSession,
+  exportSessionZip, importFile,
+  SessionBundle, ImportResult,
+  setGBufferBlobs, clearGBufferBlobs,
+  setPanoramaBlobs, clearPanoramaBlobs,
+} from '../state/storage';
 import { SceneState } from '../state/types';
+import { PlanMeta } from '../cubicasa/metadata';
 
 export interface PlanInfo {
   id: string;
@@ -9,7 +16,8 @@ export interface PlanInfo {
 export interface SessionPickerCallbacks {
   onSelectPreset: (planId: string) => void;
   onSelectSession: (name: string, state: SceneState) => void;
-  onImportSession: (name: string, state: SceneState) => void;
+  onImportZip: (result: Extract<ImportResult, { type: 'zip' }>) => void;
+  onImportSvg: (result: Extract<ImportResult, { type: 'svg' }>) => void;
 }
 
 export class SessionPicker {
@@ -18,6 +26,8 @@ export class SessionPicker {
   private callbacks: SessionPickerCallbacks;
   private currentState: SceneState | null = null;
   private currentName: string = '';
+  private currentSvgText: string = '';
+  private currentMeta: PlanMeta | null = null;
 
   constructor(
     selectEl: HTMLSelectElement,
@@ -34,19 +44,43 @@ export class SessionPicker {
 
     selectEl.addEventListener('change', () => this.onSelectionChange());
 
-    downloadBtn.addEventListener('click', () => {
-      if (this.currentState && this.currentName) {
-        exportSession(this.currentName, this.currentState);
+    downloadBtn.addEventListener('click', async () => {
+      if (this.currentState && this.currentName && this.currentMeta && this.currentSvgText) {
+        await exportSessionZip({
+          name: this.currentName,
+          state: this.currentState,
+          svgText: this.currentSvgText,
+          meta: this.currentMeta,
+        });
       }
     });
 
     uploadBtn.addEventListener('click', async () => {
       try {
-        const { name, state } = await importSessionFromFile();
-        saveSession(name, state);
-        this.callbacks.onImportSession(name, state);
-        this.rebuild();
-        this.selectEl.value = `session:${name}`;
+        const result = await importFile();
+        if (result.type === 'zip') {
+          // Restore g-buffer blobs from zip
+          if (Object.keys(result.gbufferBlobs).length > 0) {
+            setGBufferBlobs(result.gbufferBlobs);
+          } else {
+            clearGBufferBlobs();
+          }
+          // Restore panorama blobs from zip
+          if (Object.keys(result.panoramaBlobs).length > 0) {
+            setPanoramaBlobs(result.panoramaBlobs);
+          } else {
+            clearPanoramaBlobs();
+          }
+          saveSession(result.name, result.state);
+          this.callbacks.onImportZip(result);
+          this.rebuild();
+          this.selectEl.value = `session:${result.name}`;
+        } else {
+          // SVG upload — run parsing pipeline
+          clearGBufferBlobs();
+          clearPanoramaBlobs();
+          this.callbacks.onImportSvg(result);
+        }
       } catch (e) {
         console.warn('Import cancelled or failed:', e);
       }
@@ -92,9 +126,11 @@ export class SessionPicker {
   }
 
   /** Set the active session (for display tracking + download) */
-  setActive(name: string, state: SceneState) {
+  setActive(name: string, state: SceneState, svgText: string, meta: PlanMeta) {
     this.currentName = name;
     this.currentState = state;
+    this.currentSvgText = svgText;
+    this.currentMeta = meta;
   }
 
   /** Programmatically select a value */

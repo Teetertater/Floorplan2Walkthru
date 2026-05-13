@@ -276,7 +276,7 @@ function wallPosAt(wall: Wall, t: number): { cx: number; cz: number; angle: numb
 
 function generateDoorMeshes(
   plan: Plan,
-  doorMaterial: THREE.Material,
+  doorMaterial: THREE.MeshStandardMaterial,
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = 'doors';
@@ -313,7 +313,10 @@ function generateDoorMeshes(
     // Shift geometry so extrusion is centered on Z (depth)
     frameGeo.translate(0, 0, -depth / 2);
 
-    const frameMesh = new THREE.Mesh(frameGeo, doorMaterial);
+    // Each door owns its own material so colour/texture overrides can be
+    // applied independently and shared with its door panel.
+    const frameMat = doorMaterial.clone();
+    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
 
     // Orient: local X = wall direction, local Y = up, local Z = wall normal
     const cosA = Math.cos(angle);
@@ -327,7 +330,17 @@ function generateDoorMeshes(
     frameMesh.setRotationFromMatrix(mat4);
     frameMesh.position.set(cx, 0, cz);
 
-    frameMesh.userData = { type: 'door_frame', doorId: door.id };
+    frameMesh.userData = {
+      type: 'door_frame',
+      doorId: door.id,
+      wallId: door.wallId,
+      width: w,
+      height: h,
+      thickness,
+      centerX: cx,
+      centerZ: cz,
+      angle,
+    };
     group.add(frameMesh);
   }
 
@@ -442,22 +455,30 @@ export function generateScene(
     lintel: THREE.Material;
     floor: THREE.Material;
     ceiling: THREE.Material;
-    doorFrame: THREE.Material;
+    doorFrame: THREE.MeshStandardMaterial;
     windowPane: THREE.Material;
     ground: THREE.Material;
   },
+  opts?: { deletedDoors?: string[] },
 ): THREE.Group {
   const root = new THREE.Group();
   root.name = 'plan_root';
 
-  root.add(generateWallMeshes(plan, materials.wall, materials.lintel));
-  root.add(generateFloorSlab(plan, materials.floor));
-  root.add(generateCeilingSlab(plan, materials.ceiling));
-  root.add(generateDoorMeshes(plan, materials.doorFrame));
-  root.add(generateWindowMeshes(plan, materials.windowPane));
+  // If any doors were deleted by the user, treat them as if they don't exist
+  // (wall becomes solid in that spot, no frame, no panel).
+  const deleted = new Set(opts?.deletedDoors ?? []);
+  const effectivePlan: Plan = deleted.size > 0
+    ? { ...plan, doors: plan.doors.filter(d => !deleted.has(d.id)) }
+    : plan;
+
+  root.add(generateWallMeshes(effectivePlan, materials.wall, materials.lintel));
+  root.add(generateFloorSlab(effectivePlan, materials.floor));
+  root.add(generateCeilingSlab(effectivePlan, materials.ceiling));
+  root.add(generateDoorMeshes(effectivePlan, materials.doorFrame));
+  root.add(generateWindowMeshes(effectivePlan, materials.windowPane));
   // Room lights disabled — use furniture lights instead
   // root.add(generateRoomLights(plan));
-  root.add(generateGround(plan, materials.ground));
+  root.add(generateGround(effectivePlan, materials.ground));
 
   return root;
 }

@@ -19,6 +19,12 @@ export interface CameraState {
   lookDir: [number, number, number]; // unit direction vector
 }
 
+export interface PanoramaCapture {
+  roomId: string;
+  roomName: string;
+  position: [number, number, number]; // camera center in meters
+}
+
 export interface SceneState {
   planId: string;
   furniture: FurniturePlacement[];
@@ -29,6 +35,12 @@ export interface SceneState {
   //   "floor" for the floor slab
   //   "ceiling" for the ceiling slab
   surfaces?: Record<string, SurfaceStyle>;
+  // Per-door style applied to both the frame and panel (keyed by doorId)
+  doorStyles?: Record<string, SurfaceStyle>;
+  // Door IDs the user has explicitly deleted — the wall becomes solid in that spot.
+  deletedDoors?: string[];
+  // Panorama captures keyed by roomId (one per room)
+  panoramas?: Record<string, PanoramaCapture>;
 }
 
 export function createEmptyState(planId: string): SceneState {
@@ -36,5 +48,8 @@ export function createEmptyState(planId: string): SceneState {
     planId,
     furniture: [],
     surfaces: {},
+    doorStyles: {},
+    deletedDoors: [],
+    panoramas: {},
   };
 }
