@@ -484,11 +484,37 @@ async function capturePanorama() {
   console.log(`Panoramas saved for ${room.name} — bare: ${(bare.size / 1024 / 1024).toFixed(1)} MB, furnished: ${(furnished.size / 1024 / 1024).toFixed(1)} MB`);
 }
 
+// ── Controls help overlay ──
+const controlsOverlay = document.getElementById('controls-overlay')!;
+document.getElementById('controls-close')!.addEventListener('click', () => {
+  controlsOverlay.classList.add('hidden');
+});
+controlsOverlay.addEventListener('click', (e) => {
+  if (e.target === controlsOverlay) controlsOverlay.classList.add('hidden');
+});
+
+function toggleControlsOverlay() {
+  controlsOverlay.classList.toggle('hidden');
+}
+
 // ── Keyboard shortcuts ──
 let minimapVisible = true;
 window.addEventListener('keydown', (e) => {
   // Suppress all shortcuts when typing in a search field
   if (editMode.isSearchFocused) return;
+
+  // Controls overlay — always available
+  if (e.key === 'q' || e.key === 'Q') {
+    toggleControlsOverlay();
+    return;
+  }
+  if (e.key === 'Escape' && !controlsOverlay.classList.contains('hidden')) {
+    controlsOverlay.classList.add('hidden');
+    return;
+  }
+
+  // Don't process other shortcuts while controls overlay is open
+  if (!controlsOverlay.classList.contains('hidden')) return;
 
   if (e.key === 'e' || e.key === 'E') {
     editMode.toggle();

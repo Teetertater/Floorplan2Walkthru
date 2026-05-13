@@ -312,6 +312,98 @@
       padding: 16px;
       width: 240px;
     }
+
+    /* Controls help overlay */
+    #controls-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 300;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: system-ui, sans-serif;
+      color: #ddd;
+    }
+    #controls-overlay.hidden { display: none; }
+    #controls-panel {
+      background: #1a1a2e;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 32px 40px;
+      max-width: 820px;
+      width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    #controls-panel h2 {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 24px;
+      color: #fff;
+    }
+    #controls-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .ctrl-col h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .ctrl-col h3:not(:first-child) { margin-top: 16px; }
+    .ctrl-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .ctrl-row .ctrl-key {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.12);
+      font-size: 12px;
+      font-family: inherit;
+      min-width: 28px;
+      text-align: center;
+      white-space: nowrap;
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+    .ctrl-row .ctrl-desc {
+      color: rgba(255,255,255,0.75);
+    }
+    #controls-close {
+      position: absolute;
+      top: 14px; right: 18px;
+      background: none; border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #controls-close:hover { color: #fff; }
+    .ctrl-img {
+      margin-top: 16px;
+      text-align: center;
+    }
+    .ctrl-img img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .ctrl-img-caption {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -328,11 +420,7 @@
     <div><kbd>Tab</kbd> Toggle FPS lock</div>
     <div><kbd>E</kbd> Toggle edit mode</div>
     <div><kbd>M</kbd> Toggle minimap</div>
-    <div><kbd>F</kbd> Toggle doors</div>
-    <div><kbd>B</kbd> Bird's-eye view</div>
-    <div><kbd>C</kbd> Record G-buffer</div>
-    <div><kbd>P</kbd> Capture panorama</div>
-    <div><kbd>Minimap</kbd> Click to teleport</div>
+    <div><kbd>Q</kbd> All controls</div>
   </div>
 
   <div id="edit-mode-badge">EDIT MODE <span id="gizmo-label"></span></div>
@@ -399,6 +487,59 @@
     <div id="texture-picker">
       <h3>Choose Texture</h3>
       <div id="texture-picker-grid"></div>
+    </div>
+  </div>
+
+  <!-- Controls help overlay (shown on startup) -->
+  <div id="controls-overlay">
+    <div id="controls-panel">
+      <button id="controls-close">&times;</button>
+      <h2>Controls</h2>
+      <div id="controls-columns">
+        <div class="ctrl-col">
+          <h3>Getting Started</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Load an SVG floor plan (tested with <a href="https://github.com/cubicasa/cubicasa5k" target="_blank" style="color:#6af;">CubiCasa5K</a>) or pick a preset from the dropdown.</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc"><strong>Save</strong> downloads a .zip of your full project (plan, furniture, camera, surfaces, G-buffers, panoramas).</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc"><strong>Load</strong> restores a saved .zip or imports a new .svg.</span></div>
+
+          <h3>Navigation</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Move</span><span class="ctrl-key">W A S D</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Look around</span><span class="ctrl-key">Click + Drag</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Toggle FPS lock</span><span class="ctrl-key">Tab</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Teleport</span><span class="ctrl-key">Minimap Click</span></div>
+
+          <h3>Tools</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Toggle minimap</span><span class="ctrl-key">M</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Toggle doors</span><span class="ctrl-key">F</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Bird's-eye view</span><span class="ctrl-key">B</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Show this help</span><span class="ctrl-key">Q</span></div>
+
+          <h3>G-Buffer Recording</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Press <strong>C</strong> to start recording your camera path, press <strong>C</strong> again to stop. Then generate 6 G-buffer video passes (RGB, albedo, depth, normal, metallic, roughness) included in your save .zip.</span></div>
+          <div class="ctrl-img"><img src="/assets/gbuffer.png" alt="G-buffer output" /></div>
+
+          <h3>Panorama Capture</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Press <strong>P</strong> to capture a 360 equirectangular panorama (8K) from your current position. Generates two versions per room: bare (untextured) and furnished (with white floor). Saved in the .zip under <code>panoramas/</code>.</span></div>
+          <div class="ctrl-img"><img src="/assets/pano.jpeg" alt="Panorama output" /></div>
+        </div>
+        <div class="ctrl-col">
+          <h3>Edit Mode</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Toggle edit mode</span><span class="ctrl-key">E</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Surface context menu</span><span class="ctrl-key">Right-click wall / floor / ceiling</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Door context menu</span><span class="ctrl-key">Right-click door</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Furniture context menu</span><span class="ctrl-key">Right-click furniture</span></div>
+
+          <h3>Furniture Editing</h3>
+          <div class="ctrl-row"><span class="ctrl-desc">Select / enter Move mode</span><span class="ctrl-key">Left-click</span></div>
+          <div class="ctrl-row" style="padding-left:16px"><span class="ctrl-desc">Move furniture</span><span class="ctrl-key">Drag</span></div>
+          <div class="ctrl-row" style="padding-left:16px"><span class="ctrl-desc">Rotate furniture</span><span class="ctrl-key">Scroll wheel</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Switch to Scale / Height</span><span class="ctrl-key">Left-click again</span></div>
+          <div class="ctrl-row" style="padding-left:16px"><span class="ctrl-desc">Scale furniture</span><span class="ctrl-key">Drag up/down</span></div>
+          <div class="ctrl-row" style="padding-left:16px"><span class="ctrl-desc">Raise / lower</span><span class="ctrl-key">Scroll wheel</span></div>
+          <div class="ctrl-row"><span class="ctrl-desc">Deselect</span><span class="ctrl-key">Esc</span></div>
+          <div class="ctrl-img"><img src="/assets/editmode.png" alt="Edit mode reference" /></div>
+        </div>
+      </div>
     </div>
   </div>
 
