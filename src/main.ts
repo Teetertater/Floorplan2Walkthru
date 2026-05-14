@@ -237,7 +237,7 @@ const planCache = new Map<string, PlanBundle>();
 
 // ── Edit mode ──
 const editMode = new EditModeController(
-  scene, camera, renderer.domElement, furnitureManager,
+  scene, camera, renderer.domElement, furnitureManager, nav,
   () => {
     // Auto-save session on every edit (including camera)
     saveCameraState();

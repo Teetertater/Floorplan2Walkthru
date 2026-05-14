@@ -94,6 +94,14 @@ export class NavigationController {
         this.onModeChange?.('free');
       }
     });
+
+    // Browser blocks rapid re-lock (e.g. shortly after Escape) — recover from that.
+    document.addEventListener('pointerlockerror', () => {
+      if (this.mouseMode === 'locked') {
+        this.mouseMode = 'free';
+        this.onModeChange?.('free');
+      }
+    });
   }
 
   setModeChangeHandler(handler: (mode: MouseMode) => void) {
@@ -112,6 +120,20 @@ export class NavigationController {
       this.mouseMode = 'free';
       this.pointerLock.unlock();
     }
+    this.onModeChange?.(this.mouseMode);
+  }
+
+  enterFPS() {
+    if (this.mouseMode === 'locked') return;
+    this.mouseMode = 'locked';
+    this.pointerLock.lock();
+    this.onModeChange?.(this.mouseMode);
+  }
+
+  exitFPS() {
+    if (this.mouseMode === 'free') return;
+    this.mouseMode = 'free';
+    this.pointerLock.unlock();
     this.onModeChange?.(this.mouseMode);
   }
 

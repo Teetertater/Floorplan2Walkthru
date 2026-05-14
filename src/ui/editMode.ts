@@ -4,6 +4,7 @@ import { FURNITURE_CATALOG, getFurnitureById } from '../assets/catalog';
 import { TEXTURE_CATALOG, TextureMeta } from '../assets/textureCatalog';
 import { FurniturePlacement, SceneState, SurfaceStyle } from '../state/types';
 import { FurnitureManager } from '../scene/furniture';
+import { NavigationController } from '../navigation/controls';
 
 type HitType = 'furniture' | 'wall' | 'floor' | 'ceiling' | 'door' | 'none';
 
@@ -62,8 +63,12 @@ export class EditModeController {
   private plan: Plan | null = null;
   private sceneState: SceneState | null = null;
   private furnitureManager: FurnitureManager;
+  private nav: NavigationController;
   private onStateChange: () => void;
   private onDoorTopologyChange: () => void;
+
+  // Nav mode the user was in before edit mode — restored when edit mode is disabled.
+  private wasFpsBeforeEdit = false;
 
   // Hover
   private hoveredObject: THREE.Object3D | null = null;
@@ -113,6 +118,7 @@ export class EditModeController {
     camera: THREE.Camera,
     domElement: HTMLElement,
     furnitureManager: FurnitureManager,
+    nav: NavigationController,
     onStateChange: () => void,
     onDoorTopologyChange: () => void,
   ) {
@@ -120,6 +126,7 @@ export class EditModeController {
     this.camera = camera;
     this.domElement = domElement;
     this.furnitureManager = furnitureManager;
+    this.nav = nav;
     this.onStateChange = onStateChange;
     this.onDoorTopologyChange = onDoorTopologyChange;
 
@@ -153,7 +160,10 @@ export class EditModeController {
   toggle() {
     this.enabled = !this.enabled;
     this.badge.style.display = this.enabled ? 'block' : 'none';
-    if (!this.enabled) {
+    if (this.enabled) {
+      this.wasFpsBeforeEdit = this.nav.mode === 'locked';
+      this.nav.enterFPS();
+    } else {
       this.deselect();
       this.clearHover();
       this.clearWallHighlights();
@@ -164,7 +174,15 @@ export class EditModeController {
       this.closeTexturePicker();
       this.closeColourPicker();
       this.domElement.style.cursor = '';
+      if (!this.wasFpsBeforeEdit) this.nav.exitFPS();
     }
+  }
+
+  /** Re-engage FPS after a menu/picker action completes (no-op if another picker is open). */
+  private resumeFPS() {
+    if (!this.enabled) return;
+    if (this.isPickerOpen()) return;
+    this.nav.enterFPS();
   }
 
   // ── Helpers ──
@@ -183,12 +201,16 @@ export class EditModeController {
   }
 
   private isModalOpen(): boolean {
-    return this.objectPickerOverlay.classList.contains('visible') ||
-           this.texturePickerOverlay.classList.contains('visible') ||
-           this.colourPickerOverlay.classList.contains('visible') ||
+    return this.isPickerOpen() ||
            this.surfaceMenu.classList.contains('visible') ||
            this.furnitureMenu.classList.contains('visible') ||
            this.doorMenu.classList.contains('visible');
+  }
+
+  private isPickerOpen(): boolean {
+    return this.objectPickerOverlay.classList.contains('visible') ||
+           this.texturePickerOverlay.classList.contains('visible') ||
+           this.colourPickerOverlay.classList.contains('visible');
   }
 
   /** True when the search input is focused (used to suppress global keybinds) */
@@ -219,6 +241,7 @@ export class EditModeController {
           : 'floor' as const;
         this.openObjectPicker((id) => this.addFurnitureAtPoint(id), filter);
       }
+      this.resumeFPS();
     });
 
     // Furniture context menu
@@ -227,12 +250,14 @@ export class EditModeController {
       if (!action) return;
       const targetId = this.furnitureMenuTargetId;
       this.closeFurnitureMenu();
-      if (!targetId) return;
-      if (action === 'swap') {
-        const meta = getFurnitureById(this.findSceneObject(targetId)?.userData?.assetId);
-        this.openObjectPicker((newId) => this.swapFurniture(targetId, newId), meta?.placement);
+      if (targetId) {
+        if (action === 'swap') {
+          const meta = getFurnitureById(this.findSceneObject(targetId)?.userData?.assetId);
+          this.openObjectPicker((newId) => this.swapFurniture(targetId, newId), meta?.placement);
+        }
+        if (action === 'delete') this.deleteFurniture(targetId);
       }
-      if (action === 'delete') this.deleteFurniture(targetId);
+      this.resumeFPS();
     });
 
     // Door context menu
@@ -241,27 +266,35 @@ export class EditModeController {
       if (!action) return;
       const doorId = this.doorMenuTargetId;
       this.closeDoorMenu();
-      if (!doorId) return;
-      if (action === 'retexture') {
-        this.doorStyleTargetId = doorId;
-        this.openTexturePicker();
-      } else if (action === 'colour') {
-        this.doorStyleTargetId = doorId;
-        this.openColourPicker();
-      } else if (action === 'delete') {
-        this.deleteDoor(doorId);
+      if (doorId) {
+        if (action === 'retexture') {
+          this.doorStyleTargetId = doorId;
+          this.openTexturePicker();
+        } else if (action === 'colour') {
+          this.doorStyleTargetId = doorId;
+          this.openColourPicker();
+        } else if (action === 'delete') {
+          this.deleteDoor(doorId);
+        }
       }
+      this.resumeFPS();
     });
 
     // Object picker
     this.objectPickerSearch.addEventListener('input', () => this.renderObjectPickerGrid());
     this.objectPickerOverlay.addEventListener('click', (e) => {
-      if (e.target === this.objectPickerOverlay) this.closeObjectPicker();
+      if (e.target === this.objectPickerOverlay) {
+        this.closeObjectPicker();
+        this.resumeFPS();
+      }
     });
 
     // Texture picker
     this.texturePickerOverlay.addEventListener('click', (e) => {
-      if (e.target === this.texturePickerOverlay) this.closeTexturePicker();
+      if (e.target === this.texturePickerOverlay) {
+        this.closeTexturePicker();
+        this.resumeFPS();
+      }
     });
 
     // Colour picker buttons + intensity slider
@@ -272,16 +305,22 @@ export class EditModeController {
       const intensity = parseInt(this.colourIntensityInput.value) / 100;
       this.applyColour(this.colourPickerInput.value, intensity);
       this.closeColourPicker();
+      this.resumeFPS();
     });
     document.getElementById('colour-none')!.addEventListener('click', () => {
       this.clearSurfaceColour();
       this.closeColourPicker();
+      this.resumeFPS();
     });
     document.getElementById('colour-cancel')!.addEventListener('click', () => {
       this.closeColourPicker();
+      this.resumeFPS();
     });
     this.colourPickerOverlay.addEventListener('click', (e) => {
-      if (e.target === this.colourPickerOverlay) this.closeColourPicker();
+      if (e.target === this.colourPickerOverlay) {
+        this.closeColourPicker();
+        this.resumeFPS();
+      }
     });
 
     // Escape
@@ -410,7 +449,7 @@ export class EditModeController {
 
   private onMouseDown(e: MouseEvent) {
     if (!this.enabled) return;
-    if (this.isModalOpen()) return;
+    if (this.isPickerOpen()) return;
 
     if (e.button === 0) {
       // Left-click: dismiss any context menus first
@@ -434,6 +473,8 @@ export class EditModeController {
       } else {
         this.deselect();
         this.clearWallHighlights();
+        // Click-off in edit mode: re-engage FPS so the user can keep navigating
+        this.nav.enterFPS();
       }
     } else if (e.button === 2) {
       // Right-click: context actions
@@ -822,6 +863,7 @@ export class EditModeController {
       card.addEventListener('click', () => {
         if (this.pickerCallback) this.pickerCallback(item.id);
         this.closeObjectPicker();
+        this.resumeFPS();
       });
       this.objectPickerGrid.appendChild(card);
     }
@@ -870,6 +912,7 @@ export class EditModeController {
       card.addEventListener('click', () => {
         this.applyTexture(tex);
         this.closeTexturePicker();
+        this.resumeFPS();
       });
       this.texturePickerGrid.appendChild(card);
     }
