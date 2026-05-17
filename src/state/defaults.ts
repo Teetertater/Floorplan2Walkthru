@@ -179,4 +179,26 @@ export const DEFAULT_SCENES: Record<string, SceneState> = {
       door_wall_11_0: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
     },
   },
+
+  plan_72: {
+    planId: 'plan_72',
+    furniture: [],
+    surfaces: {
+      'walls:room_0': { type: 'colour', colour: '#ffffff', opacity: 1 },
+      ceiling: { type: 'colour', colour: '#ffffff', opacity: 1 },
+      floor: { type: 'texture', textureId: 'wood_floor', colour: '#ffffff', opacity: 1 },
+      'wall:wall_5': { type: 'colour', colour: '#ffffff', opacity: 1 },
+    },
+  },
+
+  plan_arch3: {
+    planId: 'plan_arch3',
+    furniture: [],
+    surfaces: {
+      'walls:room_0': { type: 'colour', colour: '#ffffff', opacity: 1 },
+      ceiling: { type: 'colour', colour: '#ffffff', opacity: 1 },
+      floor: { type: 'texture', textureId: 'wood_floor', colour: '#ffffff', opacity: 1 },
+      'wall:wall_5': { type: 'colour', colour: '#ffffff', opacity: 1 },
+    },
+  },
 };

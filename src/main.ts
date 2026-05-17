@@ -409,9 +409,21 @@ async function importFromSvg(result: Extract<ImportResult, { type: 'svg' }>) {
   clearGBufferBlobs();
   clearPanoramaBlobs();
 
+  // Seed defaults so the upload doesn't render with the bare material library
+  // (plaster-textured walls + flat-white door frames). Users expect the opposite:
+  // walls read as painted white, doors carry the plaster texture.
+  const state = createEmptyState(meta.id);
+  const plan = parseCubiCasa(svgText, meta);
+  for (const wall of plan.walls) {
+    state.surfaces![`wall:${wall.id}`] = { type: 'colour', colour: '#ffffff', opacity: 1 };
+  }
+  for (const door of plan.doors) {
+    state.doorStyles![door.id] = { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 };
+  }
+
   const session = createSession({
     name,
-    state: createEmptyState(meta.id),
+    state,
     svgText,
     meta,
   });
