@@ -34,16 +34,12 @@ export function createMaterials() {
     side: THREE.DoubleSide,
   });
 
-  const lintel = new THREE.MeshStandardMaterial({
-    map: loadTex('/textures/white_plaster/diff.jpg', wr),
-    normalMap: loadData('/textures/white_plaster/nor_gl.jpg', wr),
-    roughnessMap: loadData('/textures/white_plaster/rough.jpg', wr),
-    color: 0xffffff,
-    roughness: 0.95,
-    metalness: 0.0,
-    envMapIntensity: 0.3,
-    side: THREE.DoubleSide,
-  });
+  // Lintels (the strip above doors/windows) intentionally share the wall
+  // material instance. When the user colours "walls in room X" and room X
+  // has no doors, the lintel meshes aren't in the highlighted set — without
+  // sharing, the lintel material would keep its old colour and the wall
+  // would render as "partially coloured" (white strips above doorways).
+  const lintel = wall;
 
   // Floor: laminate with visible reflections
   const fr: [number, number] = [0.5, 0.5];
@@ -103,4 +99,27 @@ export function createMaterials() {
   });
 
   return { wall, lintel, floor, ceiling, doorFrame, windowPane, ground };
+}
+
+export type MaterialLibrary = ReturnType<typeof createMaterials>;
+
+/**
+ * Per-scene clones derived from the pristine library. Each session gets its
+ * own material instances so surface/colour mutations can't leak across
+ * sessions. Textures are shared (cloning a material copies refs, not pixels).
+ *
+ * `wall` and `lintel` are aliased to the same clone so the strip above a door
+ * always follows its wall's colour (see materials.ts wall/lintel comment).
+ */
+export function cloneMaterials(base: MaterialLibrary): MaterialLibrary {
+  const wallClone = base.wall.clone();
+  return {
+    wall: wallClone,
+    lintel: wallClone,
+    floor: base.floor.clone(),
+    ceiling: base.ceiling.clone(),
+    doorFrame: base.doorFrame.clone(),
+    windowPane: base.windowPane.clone(),
+    ground: base.ground.clone(),
+  };
 }

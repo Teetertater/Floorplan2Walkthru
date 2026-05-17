@@ -1,100 +1,50 @@
 import { SceneState } from './types';
 
-// Default furniture placements for plan_17 (Finnish Apartment)
-// Room bounds (x min/max, z min/max) — usable area with ~0.3m wall inset:
-//   room_2 LivingRoom  usable x:[2.2,5.0]  z:[2.6,6.1]   ~2.8 x 3.5m
-//   room_3 Entry Lobby usable x:[4.6,5.6]  z:[5.9,8.5]   ~1.0 x 2.6m
-//   room_5 Kitchen     usable x:[5.5,7.1]  z:[4.3,6.0]   ~1.6 x 1.7m
-//   room_6 Bedroom     usable x:[1.1,4.0]  z:[6.8,9.3]   ~2.9 x 2.5m
+// Default scene for plan_17 (Finnish Apartment) — captured from a curated session.
+// To regenerate: edit a session in the app, download the ZIP, and copy
+// session.json's `state` block here.
 
 export const DEFAULT_SCENES: Record<string, SceneState> = {
   plan_17: {
     planId: 'plan_17',
-    surfaces: {},
     furniture: [
-      // ── Living Room (room_2) ──
-      // Sofa against west wall, facing east
       {
-        assetId: 'sofa_02',
+        assetId: 'funky_green_couch',
         instanceId: 'sofa_02_0',
         roomId: 'room_2',
-        position: [2.4, 0, 4.6],
-        rotation: 90,
+        position: [3.3057939396987637, 0, 5.984146664600253],
+        rotation: 179.9999999999999,
         scale: 1,
       },
-      // Armchair facing sofa
-      {
-        assetId: 'modern_arm_chair',
-        instanceId: 'arm_chair_0',
-        roomId: 'room_2',
-        position: [4.4, 0, 4.6],
-        rotation: -90,
-        scale: 1,
-      },
-      // Coffee table between sofa and chair
-      {
-        assetId: 'chinese_tea_table',
-        instanceId: 'tea_table_0',
-        roomId: 'room_2',
-        position: [3.4, 0, 4.6],
-        rotation: 0,
-        scale: 1,
-      },
-      // Cabinet along north wall, inset from wall
       {
         assetId: 'modern_wooden_cabinet',
         instanceId: 'cabinet_0',
         roomId: 'room_2',
-        position: [3.6, 0, 3.2],
+        position: [2.9181551059704844, 0, 2.5599197911029745],
         rotation: 0,
         scale: 0.75,
       },
-
-      // ── Bedroom (room_6) ──
-      // Drawer against west wall
       {
         assetId: 'vintage_wooden_drawer',
         instanceId: 'drawer_0',
         roomId: 'room_6',
-        position: [1.3, 0, 7.5],
-        rotation: 90,
+        position: [1.2703601283200816, 0, 6.674011357770381],
+        rotation: 0,
         scale: 1,
       },
-      // Lounge chair, against south wall, facing north
       {
-        assetId: 'mid_century_lounge_chair',
+        assetId: 'floor_lamp_gold',
         instanceId: 'lounge_chair_0',
         roomId: 'room_6',
-        position: [2.8, 0, 8.8],
-        rotation: 0,
+        position: [3.9017341793118434, 0, 9.10464226704241],
+        rotation: 50,
         scale: 0.9,
       },
-      // Side table next to the chair
-      {
-        assetId: 'wooden_table_02',
-        instanceId: 'side_table_0',
-        roomId: 'room_6',
-        position: [1.5, 0, 8.8],
-        rotation: 0,
-        scale: 0.65,
-      },
-
-      // ── Kitchen (room_5) ──
-      // Small round table, centered in room
-      {
-        assetId: 'round_wooden_table',
-        instanceId: 'kitchen_table_0',
-        roomId: 'room_5',
-        position: [6.3, 0, 5.2],
-        rotation: 0,
-        scale: 0.5,
-      },
-      // Stools on opposite sides of table
       {
         assetId: 'metal_stool',
         instanceId: 'stool_0',
         roomId: 'room_5',
-        position: [5.8, 0, 5.2],
+        position: [5.556371405660149, 0, 5.163431451904482],
         rotation: 90,
         scale: 1,
       },
@@ -102,21 +52,131 @@ export const DEFAULT_SCENES: Record<string, SceneState> = {
         assetId: 'metal_stool',
         instanceId: 'stool_1',
         roomId: 'room_5',
-        position: [6.7, 0, 5.6],
+        position: [5.5374424950718835, 0, 4.485639470523855],
         rotation: 0,
         scale: 1,
       },
-
-      // ── Entry Lobby (room_3) ──
-      // Console against east wall, centered vertically
       {
         assetId: 'classic_console',
         instanceId: 'console_0',
         roomId: 'room_3',
-        position: [5.2, 0, 7.5],
-        rotation: 90,
+        position: [5.585186471205418, 0, 8.29014087770257],
+        rotation: -89.99999999999993,
         scale: 0.6,
       },
+      {
+        assetId: 'steel_frame_shelves_narrow',
+        instanceId: 'steel_frame_shelves_narrow_0',
+        roomId: 'room_8',
+        position: [5.868619524938286, 0, 9.206407630460467],
+        rotation: 0,
+        scale: 1,
+      },
+      {
+        assetId: 'bamboo_bookcase',
+        instanceId: 'bamboo_bookcase_0',
+        roomId: 'room_0',
+        position: [2.1912413315006476, 0, 4.390020279613048],
+        rotation: 0,
+        scale: 1.1647700903623268,
+      },
+      {
+        assetId: 'photo_frame_composition',
+        instanceId: 'photo_frame_composition_0',
+        roomId: 'unknown',
+        position: [3.170618132619062, 0.85, 6.32391136957059],
+        rotation: 0,
+        scale: 0.9578422100085668,
+      },
+      {
+        assetId: 'chinese_tea_table',
+        instanceId: 'wooden_table_small_0',
+        roomId: 'room_0',
+        position: [3.308543904933562, 0, 4.840742385700914],
+        rotation: 0,
+        scale: 1.1816179999022132,
+      },
+      {
+        assetId: 'ceiling_lamp_silvergold',
+        instanceId: 'ceiling_lamp_silvergold_1778595328191_2hdx',
+        roomId: 'room_2',
+        position: [6.388012355359676, 1.7000000000000002, 3.1596482585312753],
+        rotation: 0,
+        scale: 1,
+      },
+      {
+        assetId: 'hanging_led_lamp',
+        instanceId: 'hanging_led_lamp_1778595667881_qjvt',
+        roomId: 'room_0',
+        position: [3.579221050360141, 1.5, 4.348863818659331],
+        rotation: 0,
+        scale: 1,
+      },
+      {
+        assetId: 'desk_set_complete',
+        instanceId: 'desk_set_complete_1778595942073_r1z1',
+        roomId: 'room_4',
+        position: [2.8916873456544514, 0, 7.11550820230361],
+        rotation: -359.9999999999997,
+        scale: 1,
+      },
+      {
+        assetId: 'wooden_display_shelves',
+        instanceId: 'drawer_cabinet_1778596011014_6mzz',
+        roomId: 'room_4',
+        position: [1.5906922211877619, 0, 9.263815937521507],
+        rotation: 89.99999999999996,
+        scale: 1.0860312084894572,
+      },
+      {
+        assetId: 'salt_lamp',
+        instanceId: 'salt_lamp_1778596063918_6rwf',
+        roomId: 'room_1',
+        position: [5.5899754701788975, 0.6, 8.4077113283513],
+        rotation: 0,
+        scale: 0.6543314156278116,
+      },
+      {
+        assetId: 'modern_dining_set',
+        instanceId: 'modern_dining_set_1778596130802_hsm7',
+        roomId: 'room_2',
+        position: [6.474189613083038, 0, 3.118295571174289],
+        rotation: -89.99999999999996,
+        scale: 1,
+      },
+      {
+        assetId: 'steel_frame_shelves_wide',
+        instanceId: 'steel_frame_shelves_wide_1778596206892_ovoz',
+        roomId: 'room_3',
+        position: [7.003691175378478, 0, 5.74966465074712],
+        rotation: -89.99999999999996,
+        scale: 1,
+      },
+      {
+        assetId: 'bamboo_floating_shelf',
+        instanceId: 'bamboo_floating_shelf_1778836878997_4u5g',
+        roomId: 'unknown',
+        position: [5.24088343494401, 1.4, 4.672707220055644],
+        rotation: 89.99999999999996,
+        scale: 0.7106243380668912,
+      },
     ],
+    camera: {
+      position: [4.200836544776206, 1.4, 2.4549442193145485],
+      lookDir: [-0.013136157492105208, -0.04278323445490633, 0.9989980161221139],
+    },
+    surfaces: {
+      'walls:room_0': { type: 'colour', colour: '#d13d3d', opacity: 1 },
+      ceiling: { type: 'colour', colour: '#ffffff', opacity: 1 },
+      floor: { type: 'texture', textureId: 'wood_floor', colour: '#ffffff', opacity: 1 },
+      'wall:wall_5': { type: 'colour', colour: '#ffffff', opacity: 1 },
+    },
+    doorStyles: {
+      door_wall_16_0: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
+      door_wall_0_0: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
+      door_wall_11_1: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
+      door_wall_10_0: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
+      door_wall_11_0: { type: 'texture', textureId: 'white_plaster', colour: '#ffffff', opacity: 1 },
+    },
   },
 };

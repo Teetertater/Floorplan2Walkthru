@@ -18,8 +18,8 @@ import {
 } from 'postprocessing';
 
 import { parseCubiCasa } from './cubicasa/parser';
-import { loadManifest, loadPlanBundle, PlanBundle } from './cubicasa/metadata';
-import { createMaterials } from './scene/materials';
+import { loadManifest, loadPlanBundle } from './cubicasa/metadata';
+import { createMaterials, cloneMaterials } from './scene/materials';
 import { generateScene } from './scene/meshGen';
 import { setupLighting } from './scene/lighting';
 import { NavigationController } from './navigation/controls';
@@ -31,9 +31,10 @@ import { DoorPanelManager, DoorPanelDescriptor } from './scene/doorPanels';
 import { EditModeController } from './ui/editMode';
 import { SceneState, createEmptyState } from './state/types';
 import {
-  saveSession, getSession, getActiveSessionName, setActiveSessionName,
+  saveSession, getSession, createSession,
+  getActiveSessionId, setActiveSessionId,
   clearGBufferBlobs, clearPanoramaBlobs, setPanoramaBlob, setPanoramaBlobs,
-  ImportResult,
+  ImportResult, SessionRecord,
 } from './state/storage';
 import { DEFAULT_SCENES } from './state/defaults';
 import { detectOuterPerimeter } from './cubicasa/perimeterDetect';
@@ -231,15 +232,13 @@ scene.add(doorPanels.getGroup());
 // ── Session state ──
 let currentPlan: Plan | null = null;
 let currentSceneState: SceneState | null = null;
-let currentSessionName: string = '';
+let currentSession: SessionRecord | null = null;
 let planRoot: THREE.Group | null = null;
-const planCache = new Map<string, PlanBundle>();
 
 // ── Edit mode ──
 const editMode = new EditModeController(
   scene, camera, renderer.domElement, furnitureManager, nav,
   () => {
-    // Auto-save session on every edit (including camera)
     saveCameraState();
     saveBirdsEyeScreenshot();
   },
@@ -250,7 +249,8 @@ const editMode = new EditModeController(
     planRoot.traverse(obj => {
       if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
     });
-    planRoot = generateScene(currentPlan, materials, { deletedDoors: currentSceneState.deletedDoors });
+    const sceneMaterials = cloneMaterials(materials);
+    planRoot = generateScene(currentPlan, sceneMaterials, { deletedDoors: currentSceneState.deletedDoors });
     scene.add(planRoot);
 
     doorPanels.placeAll(collectDoorPanelDescs(planRoot, currentSceneState.deletedDoors)).then(() => {
@@ -262,7 +262,12 @@ const editMode = new EditModeController(
 
 // ── Core: apply a plan with a given scene state ──
 
-async function applyPlanWithState(bundle: PlanBundle, sessionName: string, state: SceneState) {
+async function applyPlanWithState(session: SessionRecord) {
+  // Flush the outgoing session's live camera position to its localStorage
+  // record before swapping. Without this, navigating around in session A
+  // then picking session B silently loses A's camera state.
+  saveCameraState();
+
   if (planRoot) {
     scene.remove(planRoot);
     planRoot.traverse(obj => {
@@ -271,30 +276,37 @@ async function applyPlanWithState(bundle: PlanBundle, sessionName: string, state
     planRoot = null;
   }
 
-  const plan = parseCubiCasa(bundle.svgText, bundle.meta);
+  const { state, svgText, meta } = session;
+  const plan = parseCubiCasa(svgText, meta);
   currentPlan = plan;
   currentSceneState = state;
-  currentSessionName = sessionName;
+  currentSession = session;
 
-  planRoot = generateScene(plan, materials, { deletedDoors: state.deletedDoors });
+  saveSession(session);
+  setActiveSessionId(session.id);
+
+  // Fresh material clones per scene — surface/colour mutations from previous
+  // sessions can't leak through the shared module-level material library.
+  const sceneMaterials = cloneMaterials(materials);
+  planRoot = generateScene(plan, sceneMaterials, { deletedDoors: state.deletedDoors });
   scene.add(planRoot);
 
   nav.setRooms(plan.rooms);
-  minimap.setPlan(plan, bundle.svgText);
+  minimap.setPlan(plan, svgText);
 
   // Place a door panel for every live door, sharing each doorframe's material
   // instance so colour/texture edits affect both frame and panel at once.
   await doorPanels.placeAll(collectDoorPanelDescs(planRoot, state.deletedDoors));
 
   await furnitureManager.loadAll(state.furniture);
-  saveSession(sessionName, state);
-  setActiveSessionName(sessionName);
   editMode.setPlan(plan, state);
   const surfaceCount = state.surfaces ? Object.keys(state.surfaces).length : 0;
   if (surfaceCount > 0) console.log(`Restoring ${surfaceCount} surface overrides`);
   editMode.applySavedSurfaces();
   editMode.applySavedDoorStyles();
-  picker.setActive(sessionName, state, bundle.svgText, bundle.meta);
+  picker.setActive(session);
+  picker.rebuild();
+  picker.setValue(`session:${session.id}`);
 
   // Restore camera from session, or default to start room
   if (state.camera) {
@@ -303,7 +315,7 @@ async function applyPlanWithState(bundle: PlanBundle, sessionName: string, state
     camera.position.set(px, py, pz);
     camera.lookAt(px + dx, py + dy, pz + dz);
   } else {
-    const startRoom = plan.rooms.find(r => r.type === bundle.meta.startRoom)
+    const startRoom = plan.rooms.find(r => r.type === meta.startRoom)
       || plan.rooms.find(r =>
         r.type !== 'Outdoor' && r.type !== 'Outdoor Balcony' && r.type !== 'Closet'
       )
@@ -316,47 +328,43 @@ async function applyPlanWithState(bundle: PlanBundle, sessionName: string, state
     }
   }
 
-  console.log(`Loaded session "${sessionName}" (${state.furniture.length} furniture pieces)`);
+  console.log(`Loaded session "${session.name}" #${session.id} (${state.furniture.length} furniture pieces)`);
   saveBirdsEyeScreenshot();
 }
 
 async function loadPreset(planId: string) {
   clearGBufferBlobs();
   clearPanoramaBlobs();
-  let bundle = planCache.get(planId);
-  if (!bundle) {
-    bundle = await loadPlanBundle(planId);
-    planCache.set(planId, bundle);
-  }
-  const state = DEFAULT_SCENES[planId]
+  const bundle = await loadPlanBundle(planId);
+  const defaultState = DEFAULT_SCENES[planId]
     || { planId, surfaces: {}, furniture: [] };
-  const sessionName = bundle.meta.name;
-  await applyPlanWithState(bundle, sessionName, JSON.parse(JSON.stringify(state)));
-  picker.rebuild();
-  picker.setValue(`session:${sessionName}`);
+  // Forking a preset creates a fresh session immediately. From this moment the
+  // session is fully independent — its own id, its own svgText, its own state.
+  const session = createSession({
+    name: bundle.meta.name,
+    state: JSON.parse(JSON.stringify(defaultState)),
+    svgText: bundle.svgText,
+    meta: bundle.meta,
+  });
+  await applyPlanWithState(session);
 }
 
-async function loadSession(name: string, state: SceneState) {
+async function loadSession(session: SessionRecord) {
   clearGBufferBlobs();
   clearPanoramaBlobs();
-  let bundle = planCache.get(state.planId);
-  if (!bundle) {
-    bundle = await loadPlanBundle(state.planId);
-    planCache.set(state.planId, bundle);
-  }
-  await applyPlanWithState(bundle, name, state);
+  await applyPlanWithState(session);
 }
 
 // ── Camera state persistence ──
 function saveCameraState() {
-  if (!currentSceneState || !currentSessionName) return;
+  if (!currentSession || !currentSceneState) return;
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   currentSceneState.camera = {
     position: [camera.position.x, camera.position.y, camera.position.z],
     lookDir: [dir.x, dir.y, dir.z],
   };
-  saveSession(currentSessionName, currentSceneState);
+  saveSession(currentSession);
 }
 
 window.addEventListener('beforeunload', saveCameraState);
@@ -395,31 +403,28 @@ async function importFromSvg(result: Extract<ImportResult, { type: 'svg' }>) {
     outerPerimeter: perimeterMeters,
   };
 
-  const bundle = { meta, svgText };
-  planCache.set(meta.id, bundle);
-
-  const state = createEmptyState(meta.id);
   clearGBufferBlobs();
   clearPanoramaBlobs();
 
-  await applyPlanWithState(bundle, name, state);
-  saveSession(name, state);
-  picker.rebuild();
-  picker.setValue(`session:${name}`);
+  const session = createSession({
+    name,
+    state: createEmptyState(meta.id),
+    svgText,
+    meta,
+  });
+  await applyPlanWithState(session);
 
-  console.log(`Imported SVG "${name}" — auto-detected ${rawPerimeter.length}-point perimeter`);
+  console.log(`Imported SVG "${name}" #${session.id} — auto-detected ${rawPerimeter.length}-point perimeter`);
 }
 
 // ── ZIP import: restore full session ──
 async function importFromZip(result: Extract<ImportResult, { type: 'zip' }>) {
   const { name, state, svgText, meta, panoramaBlobs: panoBlobs } = result;
-  const bundle = { meta, svgText };
-  planCache.set(meta.id, bundle);
-  // Restore panorama blobs from zip
   if (Object.keys(panoBlobs).length > 0) {
     setPanoramaBlobs(panoBlobs);
   }
-  await applyPlanWithState(bundle, name, state);
+  const session = createSession({ name, state, svgText, meta });
+  await applyPlanWithState(session);
 }
 
 // ── Session picker ──
@@ -430,7 +435,7 @@ const picker = new SessionPicker(
   [], // populated in init()
   {
     onSelectPreset: (planId) => loadPreset(planId),
-    onSelectSession: (name, state) => loadSession(name, state),
+    onSelectSession: (session) => loadSession(session),
     onImportZip: (result) => importFromZip(result),
     onImportSvg: (result) => importFromSvg(result),
   },
@@ -555,23 +560,20 @@ minimap.setTeleportHandler((x, z) => {
 
 // ── Bootstrap ──
 async function init() {
-  const planIds = await loadManifest();
-  const bundles = await Promise.all(planIds.map(id => loadPlanBundle(id)));
-  for (const b of bundles) planCache.set(b.meta.id, b);
-
-  // Set presets in picker
-  (picker as any).presets = bundles.map(b => ({ id: b.meta.id, name: b.meta.name }));
+  // The manifest is the only thing we fetch up front — just enough to label
+  // the Presets group. Preset bundles are fetched on demand when picked;
+  // saved sessions carry their own svgText + meta and need no fetch.
+  const manifest = await loadManifest();
+  picker.setPresets(manifest);
   picker.rebuild();
 
-  // Restore last session, or load first preset
-  const lastSessionName = getActiveSessionName();
-  const lastState = lastSessionName ? getSession(lastSessionName) : null;
+  const lastId = getActiveSessionId();
+  const lastSession = lastId != null ? getSession(lastId) : null;
 
-  if (lastState) {
-    picker.setValue(`session:${lastSessionName}`);
-    await loadSession(lastSessionName!, lastState);
+  if (lastSession) {
+    await loadSession(lastSession);
   } else {
-    await loadPreset(bundles[0].meta.id);
+    await loadPreset(manifest[0].id);
   }
 }
 

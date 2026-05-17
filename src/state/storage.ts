@@ -42,8 +42,19 @@ export function clearPanoramaBlobs(): void {
 }
 
 // ── Session CRUD ──
+// Storage layout: `{ "<id>": { id, name, state, svgText, meta }, ... }`.
+// Display names can collide; the numeric id is the real identity.
+// Each record is fully self-contained — no shared cache, no cross-session refs.
 
-function readAll(): Record<string, SceneState> {
+export interface SessionRecord {
+  id: number;
+  name: string;
+  state: SceneState;
+  svgText: string;
+  meta: PlanMeta;
+}
+
+function readAll(): Record<string, SessionRecord> {
   try {
     return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '{}');
   } catch {
@@ -51,47 +62,67 @@ function readAll(): Record<string, SceneState> {
   }
 }
 
-function writeAll(sessions: Record<string, SceneState>) {
+function writeAll(sessions: Record<string, SessionRecord>) {
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 
-export function listSessions(): string[] {
-  return Object.keys(readAll());
+function nextId(all: Record<string, SessionRecord>): number {
+  const ids = Object.values(all).map(r => r.id);
+  return ids.length > 0 ? Math.max(...ids) + 1 : 1;
 }
 
-export function getSession(name: string): SceneState | null {
-  return readAll()[name] ?? null;
+export function listSessions(): SessionRecord[] {
+  return Object.values(readAll()).sort((a, b) => a.id - b.id);
 }
 
-export function saveSession(name: string, state: SceneState): void {
+export function getSession(id: number): SessionRecord | null {
+  return readAll()[String(id)] ?? null;
+}
+
+/** Upsert by id — caller must already have an id (use createSession to allocate). */
+export function saveSession(record: SessionRecord): void {
   const all = readAll();
-  all[name] = state;
+  all[String(record.id)] = record;
   writeAll(all);
 }
 
-export function deleteSession(name: string): void {
+/** Allocate a fresh id (max+1) and persist a new session. */
+export function createSession(template: Omit<SessionRecord, 'id'>): SessionRecord {
   const all = readAll();
-  delete all[name];
+  const id = nextId(all);
+  const record: SessionRecord = { id, ...template };
+  all[String(id)] = record;
+  writeAll(all);
+  return record;
+}
+
+export function deleteSession(id: number): void {
+  const all = readAll();
+  delete all[String(id)];
   writeAll(all);
 }
 
-export function renameSession(oldName: string, newName: string): void {
+export function renameSession(id: number, newName: string): void {
   const all = readAll();
-  if (all[oldName]) {
-    all[newName] = all[oldName];
-    delete all[oldName];
+  const rec = all[String(id)];
+  if (rec) {
+    rec.name = newName;
     writeAll(all);
   }
 }
 
 // ── Active session tracking ──
 
-export function getActiveSessionName(): string | null {
-  return localStorage.getItem(ACTIVE_KEY);
+export function getActiveSessionId(): number | null {
+  const raw = localStorage.getItem(ACTIVE_KEY);
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
-export function setActiveSessionName(name: string): void {
-  localStorage.setItem(ACTIVE_KEY, name);
+export function setActiveSessionId(id: number | null): void {
+  if (id == null) localStorage.removeItem(ACTIVE_KEY);
+  else localStorage.setItem(ACTIVE_KEY, String(id));
 }
 
 // ── ZIP export ──
@@ -232,5 +263,3 @@ export function importFile(): Promise<ImportResult> {
   });
 }
 
-// Clean up old single-key storage from previous version
-localStorage.removeItem('archWalkthru_sceneState');

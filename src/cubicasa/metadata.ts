@@ -11,7 +11,12 @@ export interface PlanBundle {
   svgText: string;
 }
 
-export async function loadManifest(): Promise<string[]> {
+export interface PlanManifestEntry {
+  id: string;
+  name: string;
+}
+
+export async function loadManifest(): Promise<PlanManifestEntry[]> {
   const res = await fetch('/plans/manifest.json');
   return res.json();
 }

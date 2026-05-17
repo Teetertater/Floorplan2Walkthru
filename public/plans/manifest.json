@@ -1,1 +1,5 @@
-["plan_17", "plan_72", "plan_arch3"]
+[
+  { "id": "plan_17", "name": "Finnish Apartment (Plan 17)" },
+  { "id": "plan_72", "name": "Two-Bedroom Flat (Plan 72)" },
+  { "id": "plan_arch3", "name": "Open Kitchen Home (Plan Arch 3)" }
+]

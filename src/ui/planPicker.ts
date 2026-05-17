@@ -1,12 +1,10 @@
 import {
-  listSessions, getSession, saveSession,
+  listSessions, getSession,
   exportSessionZip, importFile,
-  SessionBundle, ImportResult,
+  ImportResult, SessionRecord,
   setGBufferBlobs, clearGBufferBlobs,
   setPanoramaBlobs, clearPanoramaBlobs,
 } from '../state/storage';
-import { SceneState } from '../state/types';
-import { PlanMeta } from '../cubicasa/metadata';
 
 export interface PlanInfo {
   id: string;
@@ -15,7 +13,7 @@ export interface PlanInfo {
 
 export interface SessionPickerCallbacks {
   onSelectPreset: (planId: string) => void;
-  onSelectSession: (name: string, state: SceneState) => void;
+  onSelectSession: (session: SessionRecord) => void;
   onImportZip: (result: Extract<ImportResult, { type: 'zip' }>) => void;
   onImportSvg: (result: Extract<ImportResult, { type: 'svg' }>) => void;
 }
@@ -24,10 +22,7 @@ export class SessionPicker {
   private selectEl: HTMLSelectElement;
   private presets: PlanInfo[];
   private callbacks: SessionPickerCallbacks;
-  private currentState: SceneState | null = null;
-  private currentName: string = '';
-  private currentSvgText: string = '';
-  private currentMeta: PlanMeta | null = null;
+  private currentSession: SessionRecord | null = null;
 
   constructor(
     selectEl: HTMLSelectElement,
@@ -45,12 +40,12 @@ export class SessionPicker {
     selectEl.addEventListener('change', () => this.onSelectionChange());
 
     downloadBtn.addEventListener('click', async () => {
-      if (this.currentState && this.currentName && this.currentMeta && this.currentSvgText) {
+      if (this.currentSession) {
         await exportSessionZip({
-          name: this.currentName,
-          state: this.currentState,
-          svgText: this.currentSvgText,
-          meta: this.currentMeta,
+          name: this.currentSession.name,
+          state: this.currentSession.state,
+          svgText: this.currentSession.svgText,
+          meta: this.currentSession.meta,
         });
       }
     });
@@ -71,10 +66,7 @@ export class SessionPicker {
           } else {
             clearPanoramaBlobs();
           }
-          saveSession(result.name, result.state);
           this.callbacks.onImportZip(result);
-          this.rebuild();
-          this.selectEl.value = `session:${result.name}`;
         } else {
           // SVG upload — run parsing pipeline
           clearGBufferBlobs();
@@ -105,14 +97,14 @@ export class SessionPicker {
     el.appendChild(presetGroup);
 
     // Saved sessions group
-    const sessionNames = listSessions();
-    if (sessionNames.length > 0) {
+    const sessions = listSessions();
+    if (sessions.length > 0) {
       const sessionGroup = document.createElement('optgroup');
       sessionGroup.label = 'Saved Sessions';
-      for (const name of sessionNames) {
+      for (const s of sessions) {
         const opt = document.createElement('option');
-        opt.value = `session:${name}`;
-        opt.textContent = name;
+        opt.value = `session:${s.id}`;
+        opt.textContent = `${s.name} #${s.id}`;
         sessionGroup.appendChild(opt);
       }
       el.appendChild(sessionGroup);
@@ -125,17 +117,19 @@ export class SessionPicker {
     }
   }
 
-  /** Set the active session (for display tracking + download) */
-  setActive(name: string, state: SceneState, svgText: string, meta: PlanMeta) {
-    this.currentName = name;
-    this.currentState = state;
-    this.currentSvgText = svgText;
-    this.currentMeta = meta;
+  /** Update the picker's notion of which session is current (for download + display). */
+  setActive(session: SessionRecord) {
+    this.currentSession = session;
   }
 
   /** Programmatically select a value */
   setValue(value: string) {
     this.selectEl.value = value;
+  }
+
+  /** Update the preset list (called after manifest loads on boot). */
+  setPresets(presets: PlanInfo[]) {
+    this.presets = presets;
   }
 
   private onSelectionChange() {
@@ -144,9 +138,9 @@ export class SessionPicker {
       const planId = val.slice('preset:'.length);
       this.callbacks.onSelectPreset(planId);
     } else if (val.startsWith('session:')) {
-      const name = val.slice('session:'.length);
-      const state = getSession(name);
-      if (state) this.callbacks.onSelectSession(name, state);
+      const id = parseInt(val.slice('session:'.length), 10);
+      const session = getSession(id);
+      if (session) this.callbacks.onSelectSession(session);
     }
   }
 }
