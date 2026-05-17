@@ -358,6 +358,9 @@ async function loadSession(session: SessionRecord) {
 // ── Camera state persistence ──
 function saveCameraState() {
   if (!currentSession || !currentSceneState) return;
+  // If the session has been deleted out from under us (e.g. via the Delete
+  // button just before a session switch), don't resurrect it in localStorage.
+  if (!getSession(currentSession.id)) return;
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   currentSceneState.camera = {
@@ -432,6 +435,7 @@ const picker = new SessionPicker(
   document.getElementById('plan-picker') as HTMLSelectElement,
   document.getElementById('btn-download') as HTMLButtonElement,
   document.getElementById('btn-upload') as HTMLButtonElement,
+  document.getElementById('btn-delete') as HTMLButtonElement,
   [], // populated in init()
   {
     onSelectPreset: (planId) => loadPreset(planId),

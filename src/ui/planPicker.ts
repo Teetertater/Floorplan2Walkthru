@@ -1,5 +1,5 @@
 import {
-  listSessions, getSession,
+  listSessions, getSession, deleteSession,
   exportSessionZip, importFile,
   ImportResult, SessionRecord,
   setGBufferBlobs, clearGBufferBlobs,
@@ -28,6 +28,7 @@ export class SessionPicker {
     selectEl: HTMLSelectElement,
     downloadBtn: HTMLButtonElement,
     uploadBtn: HTMLButtonElement,
+    deleteBtn: HTMLButtonElement,
     presets: PlanInfo[],
     callbacks: SessionPickerCallbacks,
   ) {
@@ -38,6 +39,27 @@ export class SessionPicker {
     this.rebuild();
 
     selectEl.addEventListener('change', () => this.onSelectionChange());
+
+    // Disable all keyboard interaction with the <select>. The dropdown is
+    // mouse-only; letters would otherwise typeahead-select an option (clone
+    // sessions accidentally), and arrow keys would step through entries.
+    // Global keybinds still fire because we don't stopPropagation.
+    selectEl.addEventListener('keydown', (e) => e.preventDefault());
+
+    deleteBtn.addEventListener('click', () => {
+      if (!this.currentSession) return;
+      const id = this.currentSession.id;
+      deleteSession(id);
+      this.currentSession = null;
+      this.rebuild();
+      // Navigate to a remaining session, or fall back to the first preset.
+      const remaining = listSessions();
+      if (remaining.length > 0) {
+        this.callbacks.onSelectSession(remaining[remaining.length - 1]);
+      } else if (this.presets.length > 0) {
+        this.callbacks.onSelectPreset(this.presets[0].id);
+      }
+    });
 
     downloadBtn.addEventListener('click', async () => {
       if (this.currentSession) {
