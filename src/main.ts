@@ -414,6 +414,7 @@ async function importFromSvg(result: Extract<ImportResult, { type: 'svg' }>) {
   // walls read as painted white, doors carry the plaster texture.
   const state = createEmptyState(meta.id);
   const plan = parseCubiCasa(svgText, meta);
+  state.surfaces!.ceiling = { type: 'colour', colour: '#ffffff', opacity: 1 };
   for (const wall of plan.walls) {
     state.surfaces![`wall:${wall.id}`] = { type: 'colour', colour: '#ffffff', opacity: 1 };
   }
