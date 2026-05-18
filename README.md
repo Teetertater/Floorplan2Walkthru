@@ -153,7 +153,26 @@ Relevant work:
 
 ## See also
 
-- [world-mesh](https://mschneider456.github.io/world-mesh/) — Architecture mesh and renderings → Gaussian Splat
+**Similar Architectural Splat Generation**
+- [world-mesh](https://mschneider456.github.io/world-mesh/) — architectural mesh and renderings → Gaussian splat
 - [HouseCrafter](https://neu-vi.github.io/houseCrafter/) — panorama-based interior reconstruction
-- [image-blaster](https://github.com/neilsonnn/image-blaster) — Image -> Mesh and Gaussian splat generation
-- [CubiCasa5K](https://github.com/CubiCasa/CubiCasa5k) — floor plan dataset
+- [image-blaster](https://github.com/neilsonnn/image-blaster) — image → mesh + Gaussian splat generation (Hunyuan-3D under the hood)
+
+**Gaussian splats — libraries & techniques**
+- [gsplat](https://github.com/nerfstudio-project/gsplat) — open-source CUDA library for 3D Gaussian splat rasterization (the standard implementation)
+- [PanoDreamer](https://github.com/avinashpaliwal/PanoDreamer) ([paper](https://arxiv.org/html/2412.04827)) — single image → 360° panorama → 3D splat, with diffusion + depth + splat optimization in one pipeline
+- [Splatter-360](https://3d-aigc.github.io/Splatter-360/) — generates splats directly from wide-baseline panoramic inputs, doing multi-view matching in spherical space
+- [Masterpiece X — "Splats look incredible, here's what to do when you need real assets"](https://masterpiecex.com/blog/gaussian-splats-look-incredible-heres-what-to-do-when-you-need-real-assets) — useful framing on why splats are great for visualization but bad as production assets
+
+**Panorama generation & editing**
+- [MVDiffusion](https://mvdiffusion.github.io) — text → consistent multi-view / panoramic images via correspondence-aware attention
+- [DiT360](https://github.com/Insta360-Research-Team/DiT360) — panorama generation trained on a mix of perspective and panoramic data; handles wide-angle distortion well
+- [sd-webui-panorama-tools](https://github.com/Flyguygx/sd-webui-panorama-tools) — Stable Diffusion WebUI extension for outpainting and editing equirectangular panoramas (pole fixes, seam stitching)
+
+**AI rendering / img2img**
+- [AlayaRenderer](https://github.com/ShandaAI/AlayaRenderer) — decomposes game video into G-buffers (albedo / normal / depth / etc.) and re-renders stylized output via fine-tuned video diffusion
+
+**Data & assets**
+- [CubiCasa5K](https://github.com/CubiCasa/CubiCasa5k) — annotated floor plan dataset (input SVGs for this demo)
+- [Poly Haven](https://polyhaven.com) — CC0 HDRIs, textures, and 3D models (source of the HDRIs, some textures, and a few models)
+- [Sketchfab](https://sketchfab.com) — source of the rest of the furniture models
